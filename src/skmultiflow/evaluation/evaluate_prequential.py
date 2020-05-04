@@ -69,7 +69,7 @@ class EvaluatePrequential(StreamEvaluator):
         | 'average_mean_squared_error'
         | 'average_mean_absolute_error'
         | 'average_root_mean_square_error'
-        | **General purpose** (no plot generated)
+        | **Experimental**
         | 'running_time'
         | 'model_size'
 
@@ -96,22 +96,19 @@ class EvaluatePrequential(StreamEvaluator):
     2. The metric 'true_vs_predicted' is intended to be informative only. It corresponds to evaluations at a specific
        moment which might not represent the actual learner performance across all instances.
 
-    3. The metrics `running_time` and `model_size ` are not plotted when the `show_plot` option is set. Only their
-       current value is displayed at the bottom of the figure. However, their values over the evaluation are written
-       into the resulting csv file if the `output_file` option is set.
-
     Examples
     --------
     >>> # The first example demonstrates how to evaluate one model
     >>> from skmultiflow.data import SEAGenerator
-    >>> from skmultiflow.trees import HoeffdingTreeClassifier
+    >>> from skmultiflow.trees import HoeffdingTree
     >>> from skmultiflow.evaluation import EvaluatePrequential
     >>>
     >>> # Set the stream
     >>> stream = SEAGenerator(random_state=1)
+    >>> stream.prepare_for_use()
     >>>
     >>> # Set the model
-    >>> ht = HoeffdingTreeClassifier()
+    >>> ht = HoeffdingTree()
     >>>
     >>> # Set the evaluator
     >>>
@@ -125,15 +122,16 @@ class EvaluatePrequential(StreamEvaluator):
 
     >>> # The second example demonstrates how to compare two models
     >>> from skmultiflow.data import SEAGenerator
-    >>> from skmultiflow.trees import HoeffdingTreeClassifier
+    >>> from skmultiflow.trees import HoeffdingTree
     >>> from skmultiflow.bayes import NaiveBayes
     >>> from skmultiflow.evaluation import EvaluateHoldout
     >>>
     >>> # Set the stream
     >>> stream = SEAGenerator(random_state=1)
+    >>> stream.prepare_for_use()
     >>>
     >>> # Set the models
-    >>> ht = HoeffdingTreeClassifier()
+    >>> ht = HoeffdingTree()
     >>> nb = NaiveBayes()
     >>>
     >>> evaluator = EvaluatePrequential(max_samples=10000,
@@ -148,12 +146,13 @@ class EvaluatePrequential(StreamEvaluator):
     >>> # and visualize the predictions using data points.
     >>> # Note: You can not in this case compare multiple models
     >>> from skmultiflow.data import SEAGenerator
-    >>> from skmultiflow.trees import HoeffdingTreeClassifier
+    >>> from skmultiflow.trees import HoeffdingTree
     >>> from skmultiflow.evaluation import EvaluatePrequential
     >>> # Set the stream
     >>> stream = SEAGenerator(random_state=1)
+    >>> stream.prepare_for_use()
     >>> # Set the model
-    >>> ht = HoeffdingTreeClassifier()
+    >>> ht = HoeffdingTree()
     >>> # Set the evaluator
     >>> evaluator = EvaluatePrequential(max_samples=200,
     >>>                                 n_wait=1,
@@ -304,8 +303,10 @@ class EvaluatePrequential(StreamEvaluator):
 
         update_count = 0
         print('Evaluating...')
+
         while ((self.global_sample_count < actual_max_samples) & (self._end_time - self._start_time < self.max_time)
                & (self.stream.has_more_samples())):
+
             try:
                 X, y = self.stream.next_sample(self.batch_size)
 
@@ -315,9 +316,11 @@ class EvaluatePrequential(StreamEvaluator):
                     for i in range(self.n_models):
                         try:
                             # Testing time
+                            self.running_RAM_H_measurements[i].compute_evaluate_start_time()
                             self.running_time_measurements[i].compute_testing_time_begin()
                             prediction[i].extend(self.model[i].predict(X))
                             self.running_time_measurements[i].compute_testing_time_end()
+                            self.running_RAM_H_measurements[i].compute_update_time_increment()
                         except TypeError:
                             raise TypeError("Unexpected prediction value from {}"
                                             .format(type(self.model[i]).__name__))
@@ -335,27 +338,33 @@ class EvaluatePrequential(StreamEvaluator):
                             if self._task_type != constants.REGRESSION and \
                                self._task_type != constants.MULTI_TARGET_REGRESSION:
                                 # Accounts for the moment of training beginning
+                                self.running_RAM_H_measurements[i].compute_evaluate_start_time()
                                 self.running_time_measurements[i].compute_training_time_begin()
                                 self.model[i].partial_fit(X, y, self.stream.target_values)
                                 # Accounts the ending of training
                                 self.running_time_measurements[i].compute_training_time_end()
+                                self.running_RAM_H_measurements[i].compute_update_time_increment()
                             else:
+                                self.running_RAM_H_measurements[i].compute_evaluate_start_time()
                                 self.running_time_measurements[i].compute_training_time_begin()
                                 self.model[i].partial_fit(X, y)
                                 self.running_time_measurements[i].compute_training_time_end()
+                                self.running_RAM_H_measurements[i].compute_update_time_increment()
 
                             # Update total running time
                             self.running_time_measurements[i].update_time_measurements(self.batch_size)
                         first_run = False
                     else:
                         for i in range(self.n_models):
+                            self.running_RAM_H_measurements[i].compute_evaluate_start_time()
                             self.running_time_measurements[i].compute_training_time_begin()
                             self.model[i].partial_fit(X, y)
                             self.running_time_measurements[i].compute_training_time_end()
+                            self.running_RAM_H_measurements[i].compute_update_time_increment()
                             self.running_time_measurements[i].update_time_measurements(self.batch_size)
 
                     if ((self.global_sample_count % self.n_wait) == 0 or
-                            (self.global_sample_count >= actual_max_samples) or
+                            (self.global_sample_count >= self.max_samples) or
                             (self.global_sample_count / self.n_wait > update_count + 1)):
                         if prediction is not None:
                             self._update_metrics()

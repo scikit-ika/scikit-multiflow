@@ -3,21 +3,8 @@ import numpy as np
 from skmultiflow.core import BaseSKMObject, ClassifierMixin, MetaEstimatorMixin
 from skmultiflow.bayes import NaiveBayes
 
-import warnings
 
-
-def AdditiveExpertEnsemble(n_estimators=5, base_estimator=NaiveBayes(), beta=0.8, gamma=0.1,
-                           pruning='weakest'):     # pragma: no cover
-    warnings.warn("’AdditiveExpertEnsemble’ has been renamed to ‘AdditiveExpertEnsembleClassifier’ in v0.5.0.\n"
-                  "The old name will be removed in v0.7.0", category=FutureWarning)
-    return AdditiveExpertEnsembleClassifier(n_estimators=n_estimators,
-                                            base_estimator=base_estimator,
-                                            beta=beta,
-                                            gamma=gamma,
-                                            pruning=pruning)
-
-
-class AdditiveExpertEnsembleClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
+class AdditiveExpertEnsemble(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
     """ Additive Expert ensemble classifier.
 
     Parameters
@@ -52,38 +39,6 @@ class AdditiveExpertEnsembleClassifier(BaseSKMObject, ClassifierMixin, MetaEstim
     ----------
     .. [1] Kolter and Maloof. Using additive expert ensembles to cope with Concept drift.
        Proc. 22 International Conference on Machine Learning, 2005.
-
-    Examples
-    --------
-    .. code-block:: python
-
-       # Imports
-       from skmultiflow.data import SEAGenerator
-       from skmultiflow.meta import AdditiveExpertEnsembleClassifier
-
-       # Setup a data stream
-       stream = SEAGenerator(random_state=1)
-
-       # Setup Additive Expert Ensemble Classifier
-       add_exp = AdditiveExpertEnsembleClassifier()
-
-       # Setup variables to control loop and track performance
-       n_samples = 0
-       correct_cnt = 0
-       max_samples = 200
-
-       # Train the classifier with the samples provided by the data stream
-       while n_samples < max_samples and stream.has_more_samples():
-           X, y = stream.next_sample()
-           y_pred = additive_expert_ensemble_classifier.predict(X)
-           if y[0] == y_pred[0]:
-               correct_cnt += 1
-           add_exp = add_exp.partial_fit(X, y)
-           n_samples += 1
-
-       # Display results
-       print('{} samples analyzed'.format(n_samples))
-       print('Additive Expert Ensemble Classifier accuracy: {}'.format(correct_cnt / n_samples))
     """
 
     class WeightedExpert:
@@ -104,7 +59,7 @@ class AdditiveExpertEnsembleClassifier(BaseSKMObject, ClassifierMixin, MetaEstim
     def __init__(self, n_estimators=5, base_estimator=NaiveBayes(), beta=0.8,
                  gamma=0.1, pruning='weakest'):
         """
-        Creates a new instance of AdditiveExpertEnsembleClassifier.
+        Creates a new instance of AdditiveExpertEnsemble.
         """
         super().__init__()
 
@@ -146,7 +101,7 @@ class AdditiveExpertEnsembleClassifier(BaseSKMObject, ClassifierMixin, MetaEstim
 
         Returns
         -------
-        AdditiveExpertEnsembleClassifier
+        AdditiveExpertEnsemble
             self
         """
         for i in range(len(X)):

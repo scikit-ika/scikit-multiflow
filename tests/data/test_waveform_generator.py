@@ -5,6 +5,7 @@ from skmultiflow.data.waveform_generator import WaveformGenerator
 
 def test_waveform_generator(test_path):
     stream = WaveformGenerator(random_state=23, has_noise=False)
+    stream.prepare_for_use()
 
     assert stream.n_remaining_samples() == -1
 
@@ -61,6 +62,7 @@ def test_waveform_generator(test_path):
 def test_waveform_generator_noise(test_path):
     # Noise test
     stream = WaveformGenerator(random_state=23, has_noise=True)
+    stream.prepare_for_use()
 
     assert stream.n_remaining_samples() == -1
 

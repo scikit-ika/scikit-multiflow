@@ -31,12 +31,12 @@ def demo(output_file=None, instances=40000):
     # Setup the File Stream
     stream = FileStream("../data/datasets/sea_big.csv", -1, 1)
     # stream = WaveformGenerator()
+    stream.prepare_for_use()
 
     # Setup the classifier
     # classifier = SGDClassifier()
-    # classifier = KNNADWINClassifier(n_neighbors=8, max_window_size=2000,leaf_size=40, nominal_attributes=None)
-    # classifier = OzaBaggingADWINClassifier(base_estimator=KNNClassifier(n_neighbors=8, max_window_size=2000,
-    #                                        leaf_size=30))
+    # classifier = KNNAdwin(n_neighbors=8, max_window_size=2000,leaf_size=40, nominal_attributes=None)
+    # classifier = OzaBaggingAdwin(base_estimator=KNN(n_neighbors=8, max_window_size=2000, leaf_size=30, categorical_list=None))
     classifier = PassiveAggressiveClassifier()
     # classifier = SGDRegressor()
     # classifier = PerceptronMask()

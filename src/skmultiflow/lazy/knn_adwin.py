@@ -1,33 +1,21 @@
-from skmultiflow.lazy import KNNClassifier
+from skmultiflow.lazy import KNN
 from skmultiflow.drift_detection import ADWIN
-from skmultiflow.utils.utils import get_dimensions
-
-import numpy as np
-
-import warnings
+from skmultiflow.utils.data_structures import InstanceWindow
+from skmultiflow.utils.utils import *
 
 
-def KNNAdwin(n_neighbors=5, max_window_size=1000,
-             leaf_size=30):     # pragma: no cover
-    warnings.warn("'KNNAdwin' has been renamed to 'KNNADWINClassifier' in v0.5.0.\n"
-                  "The old name will be removed in v0.7.0", category=FutureWarning)
-    return KNNADWINClassifier(n_neighbors=n_neighbors,
-                              max_window_size=max_window_size,
-                              leaf_size=leaf_size)
-
-
-class KNNADWINClassifier(KNNClassifier):
+class KNNAdwin(KNN):
     """ K-Nearest Neighbors classifier with ADWIN change detector.
     
-    This Classifier is an improvement from the regular KNNClassifier,
+    This Classifier is an improvement from the regular KNN classifier, 
     as it is resistant to concept drift. It utilises the ADWIN change 
     detector to decide which samples to keep and which ones to forget, 
     and by doing so it regulates the sample window size.
      
-    To know more about the ADWIN change detector, please see
-    :class:`skmultiflow.drift_detection.ADWIN`
+    To know more about the ADWIN change detector, please visit 
+    skmultiflow.classification.core.drift_detection.adwin
 
-    It uses the regular KNNClassifier as a base class, with the
+    It uses the regular KNN Classifier as a base class, with the 
     major difference that this class keeps a variable size window, 
     instead of a fixed size one and also it updates the adwin algorithm 
     at each partial_fit call.
@@ -45,28 +33,32 @@ class KNNADWINClassifier(KNNClassifier):
         which determines from which point the algorithm will switch for a 
         brute-force approach. The bigger this number the faster the tree 
         construction time, but the slower the query time will be.
-
-    metric: string or sklearn.DistanceMetric object
-        sklearn.KDTree parameter. The distance metric to use for the KDTree.
-        Default=’euclidean’. KNNClassifier.valid_metrics() gives a list of
-        the metrics which are valid for KDTree.
-
-    Notes
-    -----
-    This estimator is not optimal for a mixture of categorical and numerical
-    features. This implementation treats all features from a given stream as
-    numerical.
+        
+    nominal_attributes: numpy.ndarray (optional, default=None)
+        List of Nominal attributes. If emtpy, then assume that all attributes are numerical.
+        
+    Raises
+    ------
+    NotImplementedError: A few of the functions described here are not 
+    implemented since they have no application in this context.
+    
+    ValueError: A ValueError is raised if the predict function is called 
+    before at least k samples have been analyzed by the algorithm.
     
     Examples
     --------
     >>> # Imports
-    >>> from skmultiflow.lazy import KNNADWINClassifier
-    >>> from skmultiflow.data import ConceptDriftStream
+    >>> from skmultiflow.lazy.knn_adwin import KNNAdwin
+    >>> from skmultiflow.data.file_stream import FileStream
     >>> # Setting up the stream
-    >>> stream = ConceptDriftStream(position=2500, width=100, random_state=1)
+    >>> stream = FileStream('skmultiflow/data/datasets/covtype.csv')
+    >>> stream.prepare_for_use()
     >>> # Setting up the KNNAdwin classifier
-    >>> knn_adwin = KNNADWINClassifier(n_neighbors=8, leaf_size=40, max_window_size=1000)
-    >>> # Keep track of sample count and correct prediction count
+    >>> knn_adwin = KNNAdwin(n_neighbors=8, leaf_size=40, max_window_size=2000)
+    >>> # Pre training the classifier with 200 samples
+    >>> X, y = stream.next_sample(200)
+    >>> knn_adwin = knn_adwin.partial_fit(X, y)
+    >>> # Keeping track of sample count and correct prediction count
     >>> n_samples = 0
     >>> corrects = 0
     >>> while n_samples < 5000:
@@ -78,33 +70,30 @@ class KNNADWINClassifier(KNNClassifier):
     ...     n_samples += 1
     >>>
     >>> # Displaying the results
-    >>> print('KNNClassifier usage example')
+    >>> print('KNN usage example')
     >>> print(str(n_samples) + ' samples analyzed.')
     5000 samples analyzed.
-    >>> print("KNNADWINClassifier's performance: " + str(corrects/n_samples))
-    KNNAdwin's performance: 0.5714
+    >>> print("KNNAdwin's performance: " + str(corrects/n_samples))
+    KNNAdwin's performance: 0.7798
 
     """
 
-    def __init__(self,
-                 n_neighbors=5,
-                 max_window_size=1000,
-                 leaf_size=30,
-                 metric='euclidean'):
+    def __init__(self, n_neighbors=5, max_window_size=1000, leaf_size=30, nominal_attributes=None):
         super().__init__(n_neighbors=n_neighbors,
                          max_window_size=max_window_size,
                          leaf_size=leaf_size,
-                         metric=metric)
+                         nominal_attributes=nominal_attributes)
         self.adwin = ADWIN()
 
     def reset(self):
-        """ Reset the estimator.
+        """ reset
         
-        Resets the ADWIN Drift detector as well as the KNN model.
+        Resets the adwin algorithm as well as the base model 
+        kept by the KNN base class.
         
         Returns
         -------
-        KNNADWINClassifier
+        KNNAdwin
             self
         
         """
@@ -112,7 +101,12 @@ class KNNADWINClassifier(KNNClassifier):
         return super().reset()
 
     def partial_fit(self, X, y, classes=None, sample_weight=None):
-        """ Partially (incrementally) fit the model.
+        """ partial_fit
+        
+        Partially fits the model. This is done by updating the window 
+        with new samples while also updating the adwin algorithm. Then 
+        we verify if a change was detected, and if so, the window is 
+        correctly split at the drift moment.
         
         Parameters
         ----------
@@ -130,32 +124,25 @@ class KNNADWINClassifier(KNNClassifier):
         
         Returns
         -------
-        KNNADWINClassifier
+        KNNAdwin
             self
-
-        Notes
-        -----
-        Partially fits the model by updating the window with new samples
-        while also updating the ADWIN algorithm. IF ADWIN detects a change,
-        the window is split in such a wat that samples from the previous
-        concept are dropped.
         
         """
         r, c = get_dimensions(X)
-        if classes is not None:
-            self.classes = list(set().union(self.classes, classes))
+        if self.window is None:
+            self.window = InstanceWindow(max_size=self.max_window_size)
 
         for i in range(r):
-            self.data_window.add_sample(X[i], y[i])
-            if self.data_window.size >= self.n_neighbors:
-                correctly_classifies = 1 if self.predict(np.asarray([X[i]])) == y[i] else 0
-                self.adwin.add_element(correctly_classifies)
+            self.window.add_element(np.asarray([X[i]]), np.asarray([[y[i]]]))
+            if self.window.n_samples >= self.n_neighbors:
+                add = 1 if self.predict(np.asarray([X[i]])) == y[i] else 0
+                self.adwin.add_element(add)
             else:
                 self.adwin.add_element(0)
 
-        if self.data_window.size >= self.n_neighbors:
+        if self.window.n_samples >= self.n_neighbors:
             if self.adwin.detected_change():
-                if self.adwin.width < self.data_window.size:
-                    for i in range(self.data_window.size, self.adwin.width, -1):
-                        self.data_window.delete_oldest_sample()
+                if self.adwin.width < self.window.n_samples:
+                    for i in range(self.window.n_samples, self.adwin.width, -1):
+                        self.window.delete_element()
         return self

@@ -1,9 +1,5 @@
 import numpy as np
 
-from skmultiflow.utils import get_dimensions
-
-import warnings
-
 
 class FastBuffer(object):
     """ FastBuffer
@@ -33,10 +29,11 @@ class FastBuffer(object):
     >>> # In the following example we keep track of the last 1000 predictions
     >>> # and true labels
     >>> from skmultiflow.utils.data_structures import FastBuffer
-    >>> from skmultiflow.lazy import KNNClassifier
-    >>> from skmultiflow.data import FileStream
+    >>> from skmultiflow.lazy.knn import KNN
+    >>> from skmultiflow.data.file_stream import FileStream
     >>> file_stream = FileStream("skmultiflow/data/datasets/covtype.csv")
-    >>> clf = KNNClassifier(n_neighbors=8, max_window_size=2000, leaf_size=40)
+    >>> file_stream.prepare_for_use()
+    >>> clf = KNN(n_neighbors=8, max_window_size=2000, leaf_size=40)
     >>> # Initially we need to partial_fit at least n_neighbors=8 samples
     >>> X, y = file_stream.next_sample(8)
     >>> clf = clf.partial_fit(X, y, classes=file_stream.target_values)
@@ -866,133 +863,155 @@ class MOLConfusionMatrix(object):
                ' - dtype: ' + str(self.dtype)
 
 
-def InstanceWindow(self, n_features=0, n_targets=1, categorical_list=None,
-                   max_size=1000, dtype=float):   # pragma: no cover
-    warnings.warn("'InstanceWindow' has been replaced by 'SlidingWindow' in v0.5.0 "
-                  "and will be removed in v0.7.0",
-                  category=FutureWarning)
-    return SlidingWindow(window_size=max_size)
+class InstanceWindow(object):
+    """ InstanceWindow
 
-
-class SlidingWindow(object):
-    """ Keep a fixed-size sliding window of the most recent data samples.
+    Keeps a limited size window from the most recent instances seen.
+    It updates its recorded instances by the FIFO method, which means
+    that when size limit is reached, old instances are dumped to give
+    place to new instances.
 
     Parameters
     ----------
+    n_features: int
+        The total number of features to be expected.
 
-    window_size: int, optional (default=1000)
-        The window's size.
+    n_targets: int
+        The total number of target tasks to be expected.
+
+    categorical_list: list
+        A list with the indexes from all the categorical attributes.
+
+    max_size: int
+        The window's maximum length.
+
+    dtype: data type
+        A data type supported by numpy, by default it is a float.
 
     Raises
     ------
-    ValueError
-        If at any moment, a sample with a different number of attributes than
-         those already observed is passed.
+    ValueError: If at any moment, an instance with a different number of
+    attributes than that of the n_attributes parameter is passed, a ValueError
+    is raised.
 
-    Notes
-    -----
-    It updates its stored samples by the FIFO method, which means
-    that when size limit is reached, old samples are dumped to give
-    place to new samples.
-
-    The internal buffer does not keep order of the stored samples,
-    when the size limit is reached, the older samples are overwritten
-    with new ones (circular buffer).
+    TypeError: If the buffer type is altered by the user, or isn't correctly
+    initialized, a TypeError may be raised.
 
     """
 
-    def __init__(self, window_size=1000):
+    def __init__(self, n_features=0, n_targets=1, categorical_list=None, max_size=1000, dtype=float):
         super().__init__()
-
-        self.window_size = window_size
-        self._n_features = -1
-        self._n_targets = -1
-        self._X_queue = None
-        self._y_queue = None
-        self._is_initialized = False
+        # default values
+        self._buffer = None
+        self._n_samples = None
+        self._n_attributes = n_features
+        self.categorical_attributes = categorical_list
+        self.max_size = max_size
+        self.dtype = dtype
+        self._n_target_tasks = n_targets
+        self.configure()
 
     def configure(self):
-        self._X_queue = np.zeros((0, self._n_features))
-        self._y_queue = np.zeros((0, self._n_targets))
-        self._is_initialized = True
+        self._buffer = np.zeros((0, self._n_attributes + self._n_target_tasks))
+        self._n_samples = 0
 
-    def add_sample(self, X, y):
-        """ Add a (single) sample to the sample window.
+    def add_element(self, X, y):
+        """ add_element
 
-        X: numpy.ndarray of shape (1, n_features)
-            1D-array of feature for a single sample.
+        Adds a sample to the instance window.
 
-        y: numpy.ndarray of shape (1, n_targets)
-            1D-array of targets for a single sample.
+        X: numpy.ndarray of shape (1, 1)
+            Feature matrix of a single sample.
+
+        y: numpy.ndarray of shape (1, 1)
+            Labels matrix of a single sample.
 
         Raises
         ------
-        ValueError: If at any moment, a sample with a different number of \
-        attributes than that of the n_attributes parameter is passed, a \
-        ValueError is raised.
+        ValueError: If at any moment, an instance with a different number of
+        attributes than that of the n_attributes parameter is passed, a ValueError
+        is raised.
 
-        TypeError: If the buffer type is altered by the user, or isn't \
-        correctly initialized, a TypeError may be raised.
+        TypeError: If the buffer type is altered by the user, or isn't correctly
+        initialized, a TypeError may be raised.
 
         """
-        if not self._is_initialized:
-            self._n_features = get_dimensions(X)[1]
-            self._n_targets = get_dimensions(y)[1]
-            self.configure()
+        if self._n_attributes != X.size:
+            if self._n_samples == 0:
+                self._n_attributes = X.size
+                self._n_target_tasks = y.size
+                self._buffer = np.zeros((0, self._n_attributes + self._n_target_tasks))
+            else:
+                raise ValueError("Number of attributes in X is different from the objects buffer dimension. "
+                                 "Call __configure() to correctly set up the InstanceWindow")
 
-        if self._n_features != get_dimensions(X)[1]:
-            raise ValueError("Inconsistent number of features in X: {}, previously observed {}.".
-                             format(get_dimensions(X)[1], self._n_features))
+        if self._n_samples >= self.max_size:
+            self._n_samples -= 1
+            self._buffer = np.delete(self._buffer, 0, axis=0)
 
-        if self.size == self.window_size:
-            # Delete oldest sample
-            self._X_queue = np.delete(self._X_queue, 0, axis=0)
-            self._y_queue = np.delete(self._y_queue, 0, axis=0)
+        if self._buffer is None:
+            raise TypeError("None type not supported as the buffer, call configure() to set up the InstanceWindow")
 
-        self._X_queue = np.vstack((self._X_queue, X))
-        self._y_queue = np.vstack((self._y_queue, y))
+        aux = np.concatenate((X, y), axis=1)
+        self._buffer = np.concatenate((self._buffer, aux), axis=0)
+        self._n_samples += 1
 
-    def delete_oldest_sample(self):
-        """ Delete the oldest sample in the window. """
-        if self.size > 0:
-            self._X_queue = self._X_queue[1:, :]
-            self._y_queue = self._y_queue[1:, :]
+    def delete_element(self):
+        """ delete_element
+
+        Delete the oldest element from the sample window.
+
+        """
+        self._n_samples -= 1
+        self._buffer = self._buffer[1:, :]
+
+    def get_attributes_matrix(self):
+        return self._buffer[:, :self._n_attributes]
+
+    def get_targets_matrix(self):
+        return self._buffer[:, self._n_attributes:]
+
+    def at_index(self, index):
+        """ at_index
+
+        Returns the complete sample and index = index.
+
+        Parameters
+        ----------
+        index: int
+            An index from the InstanceWindow buffer.
+
+        Returns
+        -------
+        tuple
+            A tuple containing both the attributes and the targets from sample
+            indexed of index.
+
+        """
+        return self.get_attributes_matrix()[index], self.get_targets_matrix()[index]
 
     def reset(self):
-        """ Reset the sliding window. """
-        self._n_features = -1
-        self._n_targets = -1
-        self._X_queue = None
-        self._y_queue = None
-        self._is_initialized = False
+        self.configure()
 
     @property
-    def features_buffer(self):
-        """ Get the features buffer.
-
-        The shape of the buffer is (window_size, n_features).
-        """
-        return self._X_queue
-
-    @property
-    def targets_buffer(self):
-        """ Get the targets buffer
-
-        The shape of the buffer is (window_size, n_targets).
-        """
-        return self._y_queue
+    def buffer(self):
+        return self._buffer
 
     @property
     def n_targets(self):
-        """ Get the number of targets. """
-        return self._n_targets
+        return self._n_target_tasks
 
     @property
-    def n_features(self):
-        """ Get the number of features. """
-        return self._n_features
+    def n_attributes(self):
+        return self._n_attributes
 
     @property
-    def size(self):
-        """ Get the window size. """
-        return 0 if self._X_queue is None else self._X_queue.shape[0]
+    def n_samples(self):
+        return self._n_samples
+
+    def get_info(self):
+        return 'InstanceWindow: n_attributes: ' + str(self.n_attributes) + \
+               ' - n_target_tasks: ' + str(self.n_targets) + \
+               ' - n_samples: ' + str(self.n_samples) + \
+               ' - max_size: ' + str(self.max_size) + \
+               ' - dtype: ' + str(self.dtype)

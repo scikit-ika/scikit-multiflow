@@ -13,7 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 
 RUN python -m pip install -U numpy
-RUN python -m pip install -U Cython
 
 # Clone scikit-multiflow
 RUN git clone https://github.com/scikit-multiflow/scikit-multiflow.git

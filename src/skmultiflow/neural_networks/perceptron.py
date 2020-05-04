@@ -9,44 +9,13 @@ class PerceptronMask(BaseSKMObject, ClassifierMixin):
     scikit-multiflow requires a few interfaces, not present in scikit-learn,
     This mask serves as a wrapper for the Perceptron classifier.
 
-    Examples
-    --------
-    .. code-block:: python
-
-       # Imports
-       from skmultiflow.neural_networks import PerceptronMask
-       from skmultiflow.data import SEAGenerator
-
-       # Setup a data stream
-       stream = SEAGenerator(random_state=1)
-
-       # Setup the Perceptron Mask
-       perceptron = PerceptronMask()
-
-       # Pre-train the Perceptron Mask with 200 samples
-
-       # Prepare the processing of 5000 samples and correct prediction count
-       n_samples = 0
-       correct_cnt = 0
-       while n_samples < 5000 and stream.has_more_samples():
-           X, y = stream.next_sample()
-           my_pred = perceptron.predict(X)
-           if y[0] == my_pred[0]:
-               correct_cnt += 1
-           perceptron = perceptron.partial_fit(X, y, classes=stream.target_values)
-           n_samples += 1
-
-       # Display the results
-       print('Perceptron Mask usage example')
-       print('{} samples analyzed'.format(n_samples))
-       print("Perceptron's performance: {}".format(correct_cnt / n_samples))
     """
     def __init__(self,
                  penalty=None,
                  alpha=0.0001,
                  fit_intercept=True,
-                 max_iter=1000,
-                 tol=0.001,
+                 max_iter=None,
+                 tol=None,
                  shuffle=True,
                  verbose=0,
                  eta0=1.0,
@@ -56,7 +25,8 @@ class PerceptronMask(BaseSKMObject, ClassifierMixin):
                  validation_fraction=0.1,
                  n_iter_no_change=5,
                  class_weight=None,
-                 warm_start=False):
+                 warm_start=False,
+                 n_iter=None):
         self.penalty = penalty
         self.alpha = alpha
         self.fit_intercept = fit_intercept
@@ -72,6 +42,7 @@ class PerceptronMask(BaseSKMObject, ClassifierMixin):
         self.n_iter_no_change = n_iter_no_change
         self.class_weight = class_weight
         self.warm_start = warm_start
+        self.n_iter = n_iter
         super().__init__()
         self.classifier = Perceptron(penalty=self.penalty,
                                      alpha=self.alpha,

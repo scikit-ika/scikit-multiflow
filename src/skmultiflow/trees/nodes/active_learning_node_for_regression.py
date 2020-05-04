@@ -30,7 +30,7 @@ class ActiveLearningNodeForRegression(ActiveLearningNode):
             Instance target value.
         weight: float
             Instance weight.
-        ht: HoeffdingTreeRegressor
+        ht: HoeffdingTree
             Hoeffding Tree to update.
 
         """

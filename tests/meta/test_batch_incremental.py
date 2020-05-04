@@ -1,5 +1,5 @@
 from skmultiflow.data import RandomTreeGenerator
-from skmultiflow.meta.batch_incremental import BatchIncrementalClassifier
+from skmultiflow.meta.batch_incremental import BatchIncremental
 
 from sklearn.tree import DecisionTreeClassifier
 import numpy as np
@@ -7,9 +7,9 @@ import numpy as np
 
 def test_batch_incremental():
     stream = RandomTreeGenerator(tree_random_state=112, sample_random_state=112)
-
+    stream.prepare_for_use()
     estimator = DecisionTreeClassifier(random_state=112)
-    learner = BatchIncrementalClassifier(base_estimator=estimator, n_estimators=10)
+    learner = BatchIncremental(base_estimator=estimator, n_estimators=10)
 
     X, y = stream.next_sample(150)
     learner.partial_fit(X, y)
@@ -49,10 +49,10 @@ def test_batch_incremental():
 
     assert type(learner.predict(X)) == np.ndarray
 
-    expected_info = "BatchIncrementalClassifier(base_estimator=DecisionTreeClassifier(ccp_alpha=0.0, " \
-                    "class_weight=None, criterion='gini', max_depth=None, max_features=None, max_leaf_nodes=None, " \
-                    "min_impurity_decrease=0.0, min_impurity_split=None, min_samples_leaf=1, min_samples_split=2, " \
-                    "min_weight_fraction_leaf=0.0, presort='deprecated', random_state=112, splitter='best'), " \
-                    "n_estimators=10, window_size=100)"
+    expected_info = "BatchIncremental(base_estimator=DecisionTreeClassifier(class_weight=None, " \
+                    "criterion='gini', max_depth=None, max_features=None, max_leaf_nodes=None, " \
+                    "min_impurity_decrease=0.0, min_impurity_split=None, min_samples_leaf=1, " \
+                    "min_samples_split=2, min_weight_fraction_leaf=0.0, presort=False, random_state=112, " \
+                    "splitter='best'), n_estimators=10, window_size=100)"
     info = " ".join([line.strip() for line in learner.get_info().split()])
     assert info == expected_info

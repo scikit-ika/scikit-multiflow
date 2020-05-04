@@ -62,38 +62,6 @@ class RobustSoftLearningVectorQuantization(ClassifierMixin, BaseSKMObject):
        Publishing, Cham (2020)
     .. [2] Sambu Seo and Klaus Obermayer. 2003. Soft learning vector
        quantization. Neural Comput. 15, 7 (July 2003), 1589-1604
-
-    Examples
-    --------
-    .. code-block:: python
-
-       # Imports
-       from skmultiflow.data import SEAGenerator
-       from skmultiflow.prototype import RobustSoftLearningVectorQuantization
-
-       # Setup a data stream
-       stream = SEAGenerator(random_state=1)
-
-       # Pre-train the estimator with 200 samples
-       X, y = stream.next_sample(200)
-       rslvq = RobustSoftLearningVectorQuantization()
-       rslvq.partial_fit(X, y)
-
-       # Preparing the processing of 5000 samples and correct prediction count
-       n_samples = 0
-       correct_cnt = 0
-       while n_samples < 5000 and stream.has_more_samples():
-           X, y = stream.next_sample()
-           y_pred = robust_soft_learning_vector_quantization.predict(X)
-           if y[0] == y_pred[0]:
-               correct_cnt += 1
-           rslvq = rslvq.partial_fit(X, y)
-           n_samples += 1
-
-       # Display results
-       print('Robust Soft Learning Vector Quantization usage example')
-       print('{} samples analyzed.'.format(n_samples))
-       print('Robust Soft Learning Vector Quantization performance: {}'.format(correct_cnt / n_samples))
     """
 
     def __init__(self, prototypes_per_class=1, initial_prototypes=None,
@@ -155,20 +123,18 @@ class RobustSoftLearningVectorQuantization(ClassifierMixin, BaseSKMObject):
             gradient = - self._p(j, xi, prototypes=self.w_) * d
 
         # Accumulate gradient
-        self.squared_mean_gradient[j] = (self.gamma
-                                         * self.squared_mean_gradient[j]
-                                         + (1 - self.gamma)
-                                            * gradient
-                                            * gradient)
+        self.squared_mean_gradient[j] = self.gamma * \
+            self.squared_mean_gradient[j] + (1 - self.gamma) \
+            * gradient ** 2
 
         # Compute update/step
-        step = (np.sqrt((self.squared_mean_step[j] + self.epsilon)
-                        / (self.squared_mean_gradient[j] + self.epsilon))
-                * gradient)
+        step = ((self.squared_mean_step[j] + self.epsilon) /
+                (self.squared_mean_gradient[j] + self.epsilon)) ** 0.5 * \
+            gradient
 
         # Accumulate updates
-        self.squared_mean_step[j] = (self.gamma * self.squared_mean_step[j]
-                                     + (1 - self.gamma) * step * step)
+        self.squared_mean_step[j] = self.gamma * \
+            self.squared_mean_step[j] + (1 - self.gamma) * step ** 2
 
         # Attract/Distract prototype to/from data point
         self.w_[j] += step

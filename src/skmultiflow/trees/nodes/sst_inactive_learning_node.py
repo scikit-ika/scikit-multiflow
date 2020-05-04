@@ -1,5 +1,4 @@
 import numpy as np
-
 from skmultiflow.trees.nodes import InactiveLearningNodePerceptronMultiTarget
 from skmultiflow.utils import get_dimensions
 
@@ -16,18 +15,21 @@ class SSTInactiveLearningNode(InactiveLearningNodePerceptronMultiTarget):
         - 0: the sum of elements seen so far;
         - 1: the sum of the targets values seen so far;
         - 2: the sum of the squared values of the targets seen so far.
-    parent_node: SSTActiveLearningNode (default=None)
-        A node containing statistics about observed data.
+    perceptron_weight: `numpy.ndarray` with number of features rows and
+    number of targets columns.
+        The weight matrix for the perceptron predictors. It will be
+        extracted from the ActiveLearningNode which is being
+        deactivated.
     random_state : `int`, `RandomState` instance or None (default=None)
         If int, `random_state` is used as seed to the random number
         generator; If a `RandomState` instance, `random_state` is the
         random number generator; If `None`, the random number generator
         is the current `RandomState` instance used by `np.random`.
     """
-    def __init__(self, initial_class_observations, parent_node=None,
+    def __init__(self, initial_class_observations, perceptron_weight=None,
                  random_state=None):
         """ SSTInactiveLearningNode class constructor."""
-        super().__init__(initial_class_observations, parent_node,
+        super().__init__(initial_class_observations, perceptron_weight,
                          random_state)
 
     def learn_from_instance(self, X, y, weight, rht):
@@ -41,7 +43,7 @@ class SSTInactiveLearningNode(InactiveLearningNodePerceptronMultiTarget):
             Instance targets.
         weight: float
             Instance weight.
-        rht: HoeffdingTreeRegressor
+        rht: RegressionHoeffdingTree
             Regression Hoeffding Tree to update.
         """
         self._observed_class_distribution[0] += weight
@@ -70,7 +72,7 @@ class SSTInactiveLearningNode(InactiveLearningNodePerceptronMultiTarget):
             Targets values.
         learning_ratio: float
             perceptron learning ratio
-        rht: HoeffdingTreeRegressor
+        rht: RegressionHoeffdingTree
             Regression Hoeffding Tree to update.
         """
         normalized_sample = rht.normalize_sample(X)
@@ -79,7 +81,7 @@ class SSTInactiveLearningNode(InactiveLearningNodePerceptronMultiTarget):
         _, n_features = get_dimensions(X)
         _, n_targets = get_dimensions(y)
 
-        normalized_target_value = rht.normalize_target_value(y)
+        normalized_target_value = rht.normalized_target_value(y)
 
         self.perceptron_weight[0] += learning_ratio * \
             (normalized_target_value - normalized_base_pred)[:, None] @ \

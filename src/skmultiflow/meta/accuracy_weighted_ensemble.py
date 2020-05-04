@@ -6,21 +6,7 @@ import copy as cp
 import operator as op
 
 
-import warnings
-
-
-def AccuracyWeightedEnsemble(n_estimators=10, n_kept_estimators=30, base_estimator=NaiveBayes(), window_size=200,
-                             n_splits=5):     # pragma: no cover
-    warnings.warn("’AccuracyWeightedEnsemble’ has been renamed to ‘AccuracyWeightedEnsembleClassifier’ in v0.5.0.\n"
-                  "The old name will be removed in v0.7.0", category=FutureWarning)
-    return AccuracyWeightedEnsembleClassifier(n_estimators=n_estimators,
-                                              n_kept_estimators=n_kept_estimators,
-                                              base_estimator=base_estimator,
-                                              window_size=window_size,
-                                              n_splits=n_splits)
-
-
-class AccuracyWeightedEnsembleClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
+class AccuracyWeightedEnsemble(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
     """ Accuracy Weighted Ensemble classifier
 
     Parameters
@@ -51,37 +37,6 @@ class AccuracyWeightedEnsembleClassifier(BaseSKMObject, ClassifierMixin, MetaEst
        on Knowledge discovery and data mining (KDD '03).
        ACM, New York, NY, USA, 226-235.
 
-    Examples
-    --------
-    .. code-block:: python
-
-       # Imports
-       from skmultiflow.data import SEAGenerator
-       from skmultiflow.meta import AccuracyWeightedEnsembleClassifier
-
-       # Setting up a data stream
-       stream = SEAGenerator(random_state=1)
-
-       # Setup Accuracy Weighted Ensemble Classifier
-       awe = AccuracyWeightedEnsembleClassifier()
-
-       # Setup variables to control loop and track performance
-       n_samples = 0
-       correct_cnt = 0
-       max_samples = 200
-
-       # Train the classifier with the samples provided by the data stream
-       while n_samples < max_samples and stream.has_more_samples():
-           X, y = stream.next_sample()
-           y_pred = awe.predict(X)
-           if y[0] == y_pred[0]:
-               correct_cnt += 1
-           awe = awe.partial_fit(X, y)
-           n_samples += 1
-
-       # Display results
-       print('{} samples analyzed.'.format(n_samples))
-       print('Accuracy Weighted Ensemble Classifier accuracy: {}'.format(correct_cnt / n_samples))
     """
 
     class WeightedClassifier:
@@ -339,7 +294,7 @@ class AccuracyWeightedEnsembleClassifier(BaseSKMObject, ClassifierMixin, MetaEst
             if c in labels:
                 index_label_c = np.where(labels == c)[0][0]  # find the index of this label c in probabs[i]
                 probab_ic = probabs[i][index_label_c]
-                sum_error += (1.0 - probab_ic) * (1.0 - probab_ic)
+                sum_error += (1.0 - probab_ic) ** 2
             else:
                 sum_error += 1.0
 
@@ -433,9 +388,7 @@ class AccuracyWeightedEnsembleClassifier(BaseSKMObject, ClassifierMixin, MetaEst
 
         # if we base on the class distribution of the data --> count the number of labels
         classes, class_count = np.unique(y, return_counts=True)
-        class_dist = [class_count[i] / len(y) for i in range(len(classes))]
-        mse_r = np.sum([(class_dist[i]
-                         * (1 - class_dist[i])
-                         * (1 - class_dist[i])) for i in range(len(classes))])
+        class_dist = [class_count[i] / len(y) for i, c in enumerate(classes)]
+        mse_r = np.sum([class_dist[i] * ((1 - class_dist[i]) ** 2) for i, c in enumerate(classes)])
 
         return mse_r

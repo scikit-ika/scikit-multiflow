@@ -49,7 +49,7 @@ help:
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)/*
-	rm -rf api/generated/*
+	rm -rf _autosummary/*
 
 .PHONY: html
 html:

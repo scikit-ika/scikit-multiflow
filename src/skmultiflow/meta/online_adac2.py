@@ -2,26 +2,12 @@ import copy as cp
 
 from skmultiflow.core import BaseSKMObject, ClassifierMixin, MetaEstimatorMixin
 from skmultiflow.drift_detection import ADWIN
-from skmultiflow.lazy import KNNADWINClassifier
+from skmultiflow.lazy import KNNAdwin
 from skmultiflow.utils import check_random_state
 from skmultiflow.utils.utils import *
 
-import warnings
 
-
-def OnlineAdaC2(base_estimator=KNNADWINClassifier(), n_estimators=10, cost_positive=1, cost_negative=0.1,
-                drift_detection=True, random_state=None):     # pragma: no cover
-    warnings.warn("'OnlineAdaC2' has been renamed to 'OnlineAdaC2Classifier' in v0.5.0.\n"
-                  "The old name will be removed in v0.7.0", category=FutureWarning)
-    return OnlineAdaC2Classifier(base_estimator=base_estimator,
-                                 n_estimators=n_estimators,
-                                 cost_positive=cost_positive,
-                                 cost_negative=cost_negative,
-                                 drift_detection=drift_detection,
-                                 random_state=random_state)
-
-
-class OnlineAdaC2Classifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
+class OnlineAdaC2(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
     """ Online AdaC2 ensemble classifier.
 
     Online AdaC2 [1]_ is the adaptation of the ensemble learner to data streams.
@@ -42,7 +28,7 @@ class OnlineAdaC2Classifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
 
     Parameters
     ----------
-    base_estimator: skmultiflow.core.BaseSKMObject or sklearn.BaseEstimator (default=KNNADWINClassifier)
+    base_estimator: skmultiflow.core.BaseSKMObject or sklearn.BaseEstimator (default=KNNAdwin)
         Each member of the ensemble is an instance of the base estimator.
 
     n_estimators: int, optional (default=10)
@@ -77,41 +63,10 @@ class OnlineAdaC2Classifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
        in IEEE Transactions on Knowledge and Data Engineering, vol. 28, no. 12, pp.
        3353-3366, 1 Dec. 2016. doi: 10.1109/TKDE.2016.2609424
 
-    Examples
-    --------
-    .. code-block:: python
-
-       # Imports
-       from skmultiflow.data import SEAGenerator
-       from skmultiflow.meta import OnlineAdaC2Classifier
-
-       # Setup a data stream
-       stream = SEAGenerator(random_state=1)
-
-       # Setup variables to control loop and track performance
-       n_samples = 0
-       correct_cnt = 0
-       max_samples = 200
-
-       # Setup the Online Ada C2 Classifier
-       online_ada_c2_classifier = OnlineAdaC2Classifier()
-
-       # Train the classifier with the samples provided by the data stream
-       while n_samples < max_samples and stream.has_more_samples():
-           X, y = stream.next_sample()
-           y_pred = online_ada_c2_classifier.predict(X)
-           if y[0] == y_pred[0]:
-               correct_cnt += 1
-           online_ada_c2_classifier = online_ada_c2_classifier.partial_fit(X, y)
-           n_samples += 1
-
-       # Display results
-       print('{} samples analyzed.'.format(n_samples))
-       print('Online Ada C2 Classifier performance: {}'.format(correct_cnt / n_samples))
     """
 
     def __init__(self,
-                 base_estimator=KNNADWINClassifier(),
+                 base_estimator=KNNAdwin(),
                  n_estimators=10,
                  cost_positive=1,
                  cost_negative=0.1,
@@ -138,6 +93,7 @@ class OnlineAdaC2Classifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
         self.lam_sum = None
         self.wacc = None
         self.werr = None
+        self.__configure()
 
     def __configure(self):
         if hasattr(self.base_estimator, "reset"):
@@ -198,9 +154,6 @@ class OnlineAdaC2Classifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
         self
 
         """
-        if self.ensemble is None:
-            self.__configure()
-
         if self.classes is None:
             if classes is None:
                 raise ValueError("The first partial_fit call should pass all the classes.")
@@ -339,35 +292,26 @@ class OnlineAdaC2Classifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
         """
         proba = []
         r, c = get_dimensions(X)
+        try:
+            for i in range(self.actual_n_estimators):
+                partial_proba = self.ensemble[i].predict_proba(X)
+                if len(partial_proba[0]) > max(self.classes) + 1:
+                    raise ValueError("The number of classes in the base learner is larger than in the ensemble.")
 
-        if self.ensemble is None:
-            return np.zeros((r, 1))
-
-        with warnings.catch_warnings():  # Context manager to catch errors raised by numpy as RuntimeWarning
-            warnings.filterwarnings('error')
-            try:
-                for i in range(self.actual_n_estimators):
-                    partial_proba = self.ensemble[i].predict_proba(X)
-                    if len(partial_proba[0]) > max(self.classes) + 1:
-                        raise ValueError("The number of classes in the base learner is larger than in the ensemble.")
-
-                    if len(proba) < 1:
-                        for n in range(r):
-                            proba.append([0.0 for _ in partial_proba[n]])
-
+                if len(proba) < 1:
                     for n in range(r):
-                        for l in range(len(partial_proba[n])):
-                            try:
-                                proba[n][l] += np.log(self.wacc[i] / self.werr[i]) * partial_proba[n][l]
-                            except IndexError:
-                                proba[n].append(partial_proba[n][l])
-                            except RuntimeWarning:
-                                # Catch division by zero errors raised by numpy as RuntimeWarning
-                                continue
-            except ValueError:
-                return np.zeros((r, 1))
-            except TypeError:
-                return np.zeros((r, 1))
+                        proba.append([0.0 for _ in partial_proba[n]])
+
+                for n in range(r):
+                    for l in range(len(partial_proba[n])):
+                        try:
+                            proba[n][l] += np.log(self.wacc[i] / self.werr[i]) * partial_proba[n][l]
+                        except IndexError:
+                            proba[n].append(partial_proba[n][l])
+        except ValueError:
+            return np.zeros((r, 1))
+        except TypeError:
+            return np.zeros((r, 1))
 
         # normalizing probabilities
         sum_proba = []

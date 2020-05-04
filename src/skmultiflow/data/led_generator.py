@@ -50,6 +50,7 @@ class LEDGenerator(Stream):
        >>> from skmultiflow.data.led_generator import LEDGenerator
        >>> # Setting up the stream
        >>> stream = LEDGenerator(random_state = 112, noise_percentage = 0.28, has_noise= True)
+       >>> stream.prepare_for_use()
        >>> # Retrieving one sample
        >>> stream.next_sample()
        (array([[0., 1., 1., 1., 0., 0., 0., 0., 1., 0., 0., 0., 1., 0., 1., 1.,
@@ -110,13 +111,14 @@ class LEDGenerator(Stream):
         self.n_targets = 1
         self.n_classes = 10
         self.name = "Led Generator"
+        self.__configure()
 
+    def __configure(self):
+        self._random_state = check_random_state(self.random_state)
         self.n_cat_features = self._TOTAL_ATTRIBUTES_INCLUDING_NOISE if self.has_noise else self._NUM_BASE_ATTRIBUTES
         self.n_features = self.n_cat_features
         self.feature_names = ["att_num_" + str(i) for i in range(self.n_cat_features)]
         self.target_values = [i for i in range(self.n_classes)]
-
-        self._prepare_for_use()
 
     @property
     def noise_percentage(self):
@@ -168,11 +170,20 @@ class LEDGenerator(Stream):
         else:
             raise ValueError("has_noise should be boolean, and {} was passed".format(has_noise))
 
-    def _prepare_for_use(self):
+    def prepare_for_use(self):
+        """
+        Prepares the stream for use.
+
+        Notes
+        -----
+        This functions should always be called after the stream initialization.
+
+        """
         self._random_state = check_random_state(self.random_state)
+        self.sample_idx = 0
 
     def next_sample(self, batch_size=1):
-        """ Returns next sample from the stream.
+        """ next_sample
 
         An instance is generated based on the parameters passed. If noise
         is included the total number of attributes will be 24, if it's not
@@ -180,7 +191,7 @@ class LEDGenerator(Stream):
 
         Parameters
         ----------
-        batch_size: int (optional, default=1)
+        batch_size: int
             The number of samples to return.
 
         Returns
@@ -212,6 +223,9 @@ class LEDGenerator(Stream):
         self.current_sample_x = data[:, :self.n_features]
         self.current_sample_y = target
         return self.current_sample_x, self.current_sample_y
+
+    def restart(self):
+        self.prepare_for_use()
 
     def get_data_info(self):
         return "Led Generator - {} features".format(self.n_features)

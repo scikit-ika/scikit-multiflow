@@ -1,5 +1,5 @@
 from skmultiflow.data.hyper_plane_generator import HyperplaneGenerator
-from skmultiflow.meta import AccuracyWeightedEnsembleClassifier
+from skmultiflow.meta import AccuracyWeightedEnsemble
 from skmultiflow.bayes import NaiveBayes
 import numpy as np
 from array import array
@@ -8,11 +8,12 @@ from array import array
 def test_awe():
     # prepare the stream
     stream = HyperplaneGenerator(random_state=1)
+    stream.prepare_for_use()
 
     # prepare the ensemble
-    classifier = AccuracyWeightedEnsembleClassifier(n_estimators=5, n_kept_estimators=10,
-                                                    base_estimator=NaiveBayes(),
-                                                    window_size=200, n_splits=5)
+    classifier = AccuracyWeightedEnsemble(n_estimators=5, n_kept_estimators=10,
+                                          base_estimator=NaiveBayes(),
+                                          window_size=200, n_splits=5)
 
     # test the classifier
     max_samples = 5000
@@ -48,7 +49,7 @@ def test_awe():
     assert np.alltrue(predictions == expected_predictions)
 
     # assert model information
-    expected_info = 'AccuracyWeightedEnsembleClassifier(base_estimator=NaiveBayes(nominal_attributes=None),\n' \
-                    '                                   n_estimators=5, n_kept_estimators=10,\n' \
-                    '                                   n_splits=5, window_size=200)'
+    expected_info = 'AccuracyWeightedEnsemble(base_estimator=NaiveBayes(nominal_attributes=None),\n' \
+                    '                         n_estimators=5, n_kept_estimators=10, n_splits=5,\n' \
+                    '                         window_size=200)'
     assert classifier.__repr__() == expected_info

@@ -23,7 +23,7 @@ class LCLearningNodeNB(LCActiveLearningNode):
         ----------
         X: numpy.ndarray of length equal to the number of features.
             Instance attributes.
-        ht: HoeffdingTreeClassifier
+        ht: HoeffdingTree
             Hoeffding Tree.
 
         Returns

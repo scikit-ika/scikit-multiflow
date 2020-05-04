@@ -3,19 +3,24 @@ from operator import attrgetter
 import numpy as np
 
 from skmultiflow.core import MultiOutputMixin
-from skmultiflow.trees import iSOUPTreeRegressor
+from skmultiflow.trees import MultiTargetRegressionHoeffdingTree
 from skmultiflow.utils import get_dimensions
 from skmultiflow.trees.split_criterion import IntraClusterVarianceReductionSplitCriterion
 
-from skmultiflow.trees.nodes import LearningNode
+from skmultiflow.trees.nodes import SplitNode
+from skmultiflow.trees.nodes import ActiveLearningNode
 from skmultiflow.trees.nodes import SSTActiveLearningNode
 from skmultiflow.trees.nodes import SSTActiveLearningNodeAdaptive
 from skmultiflow.trees.nodes import SSTInactiveLearningNode
 from skmultiflow.trees.nodes import SSTInactiveLearningNodeAdaptive
 
 
-class StackedSingleTargetHoeffdingTreeRegressor(iSOUPTreeRegressor, MultiOutputMixin):
-    """Stacked Single-target Hoeffding Tree regressor.
+_PERCEPTRON = 'perceptron'
+_ADAPTIVE = 'adaptive'
+
+
+class StackedSingleTargetHoeffdingTreeRegressor(MultiTargetRegressionHoeffdingTree, MultiOutputMixin):
+    """Stacked Single-target Hoeffding Tree Regressor.
 
     Implementation of the Stacked Single-target Hoeffding Tree (SST-HT) method
     for multi-target regression as proposed by S. M. Mastelini, S. Barbon Jr.,
@@ -69,41 +74,6 @@ class StackedSingleTargetHoeffdingTreeRegressor(iSOUPTreeRegressor, MultiOutputM
     .. [1] Mastelini, S. M., Barbon Jr, S., de Carvalho, A. C. P. L. F. (2019).
        "Online Multi-target regression trees with stacked leaf models". arXiv
        preprint arXiv:1903.12483.
-
-    Examples
-    --------
-    .. code-block:: python
-
-       # Imports
-       from skmultiflow.data import RegressionGenerator
-       from skmultiflow.trees import StackedSingleTargetHoeffdingTreeRegressor
-       import numpy as np
-
-       # Setup a data stream
-       n_targets = 3
-       stream = RegressionGenerator(n_targets=n_targets, random_state=1)
-
-       # Setup the Stacked Single-target Hoeffding Tree Regressor
-       sst_ht = StackedSingleTargetHoeffdingTreeRegressor()
-
-       # Auxiliary variables to control loop and track performance
-       n_samples = 0
-       correct_cnt = 0
-       max_samples = 200
-       y_pred = np.zeros((max_samples, n_targets))
-       y_true = np.zeros((max_samples, n_targets))
-
-       # Run test-then-train loop for max_samples or while there is data in the stream
-       while n_samples < max_samples and stream.has_more_samples():
-           X, y = stream.next_sample()
-           y_true[n_samples] = y[0]
-           y_pred[n_samples] = sst_ht.predict(X)[0]
-           sst_ht.partial_fit(X, y)
-           n_samples += 1
-
-       # Display results
-       print('{} samples analyzed.'.format(n_samples))
-       print('Stacked Single-target Hoeffding Tree Regressor mean absolute error: {}'.format(np.mean(np.abs(y_true - y_pred))))
     """
 
     # =====================================================================
@@ -170,10 +140,9 @@ class StackedSingleTargetHoeffdingTreeRegressor(iSOUPTreeRegressor, MultiOutputM
 
     @leaf_prediction.setter
     def leaf_prediction(self, leaf_prediction):
-        if leaf_prediction not in {self._PERCEPTRON, self._ADAPTIVE}:
-            print("Invalid leaf_prediction option {}', will use default '{}'".
-                  format(leaf_prediction, self._PERCEPTRON))
-            self._leaf_prediction = self._PERCEPTRON
+        if leaf_prediction not in {_PERCEPTRON, _ADAPTIVE}:
+            print("Invalid leaf_prediction option {}', will use default '{}'".format(leaf_prediction, _PERCEPTRON))
+            self._leaf_prediction = _PERCEPTRON
         else:
             self._leaf_prediction = leaf_prediction
 
@@ -195,62 +164,31 @@ class StackedSingleTargetHoeffdingTreeRegressor(iSOUPTreeRegressor, MultiOutputM
             leaf_node = found_node.node
             if leaf_node is None:
                 leaf_node = found_node.parent
-            if isinstance(leaf_node, LearningNode):
-                fmaes['mean'] = leaf_node.fMAE_M
-                fmaes['perceptron'] = leaf_node.fMAE_P
-                fmaes['stacked_perceptron'] = leaf_node.fMAE_SP
-            else:
-                # If the found node is not a learning node, give preference to
-                # the mean predictor
-                fmaes['mean'] = np.zeros(self._n_targets)
-                fmaes['perceptron'] = np.full(self._n_targets, np.Inf)
-                fmaes['stacked_perceptron'] = np.full(self._n_targets, np.Inf)
+            fmaes['mean'] = leaf_node.fMAE_M
+            fmaes['perceptron'] = leaf_node.fMAE_P
+            fmaes['stacked_perceptron'] = leaf_node.fMAE_SP
 
         return fmaes
 
-    def _new_learning_node(self, initial_class_observations=None, parent_node=None,
-                           is_active_node=True):
+    def _new_learning_node(self, initial_class_observations=None,
+                           perceptron_weight=None):
         """Create a new learning node. The type of learning node depends on
         the tree configuration.
         """
         if initial_class_observations is None:
             initial_class_observations = {}
-
-        if is_active_node:
-            if self.leaf_prediction == self._PERCEPTRON:
-                return SSTActiveLearningNode(
-                    initial_class_observations,
-                    parent_node,
-                    random_state=self.random_state
-                )
-            elif self.leaf_prediction == self._ADAPTIVE:
-                new_node = SSTActiveLearningNodeAdaptive(
-                    initial_class_observations,
-                    parent_node,
-                    random_state=self.random_state
-                )
-                # Resets faded errors
-                new_node.fMAE_M = np.zeros(self._n_targets, dtype=np.float64)
-                new_node.fMAE_P = np.zeros(self._n_targets, dtype=np.float64)
-                new_node.fMAE_SP = np.zeros(self._n_targets, dtype=np.float64)
-                return new_node
-        else:
-            if self.leaf_prediction == self._PERCEPTRON:
-                return SSTInactiveLearningNode(
-                    initial_class_observations,
-                    parent_node,
-                    random_state=parent_node.random_state
-                )
-            elif self.leaf_prediction == self._ADAPTIVE:
-                new_node = SSTInactiveLearningNodeAdaptive(
-                    initial_class_observations,
-                    parent_node,
-                    random_state=parent_node.random_state
-                )
-                new_node.fMAE_M = parent_node.fMAE_M
-                new_node.fMAE_P = parent_node.fMAE_P
-                new_node.fMAE_SP = parent_node.fMAE_SP
-                return new_node
+        if self.leaf_prediction == _PERCEPTRON:
+            return SSTActiveLearningNode(
+                initial_class_observations,
+                perceptron_weight,
+                self.random_state
+            )
+        elif self.leaf_prediction == _ADAPTIVE:
+            return SSTActiveLearningNodeAdaptive(
+                initial_class_observations,
+                perceptron_weight,
+                random_state=self.random_state
+            )
 
     def predict(self, X):
         """Predicts the target value using mean class or the perceptron.
@@ -267,42 +205,27 @@ class StackedSingleTargetHoeffdingTreeRegressor(iSOUPTreeRegressor, MultiOutputM
         """
         r, _ = get_dimensions(X)
 
-        try:
-            predictions = np.zeros((r, self._n_targets), dtype=np.float64)
-        except AttributeError:
-            return [0.0]
+        predictions = np.zeros((r, self._n_targets), dtype=np.float64)
         for i in range(r):
-            if self.leaf_prediction == self._PERCEPTRON:
+            if self.leaf_prediction == _PERCEPTRON:
                 if self.examples_seen > 1:
-                    perceptron_weights = self.get_weights_for_instance(X[i])
-                    if perceptron_weights is None:
-                        # Instance was sorted to a non-learning node: use
-                        # mean prediction
-                        votes = self.get_votes_for_instance(X[i]).copy()
-                        number_of_examples_seen = votes[0]
-                        sum_of_values = votes[1]
-                        predictions[i] = sum_of_values / number_of_examples_seen
-                        continue
-
                     normalized_sample = self.normalize_sample(X[i])
-                    normalized_base_prediction = np.matmul(
-                        perceptron_weights[0], normalized_sample
-                    )
-                    normalized_meta_prediction = np.matmul(
-                        perceptron_weights[1],
+                    perceptron_weights = self.get_weights_for_instance(X[i])
+
+                    normalized_base_prediction = perceptron_weights[0] @ \
+                        normalized_sample
+                    normalized_meta_prediction = perceptron_weights[1] @ \
                         np.append(normalized_base_prediction, 1.0)
-                    )
                     mean = self.sum_of_values / self.examples_seen
                     variance = (self.sum_of_squares -
-                                (self.sum_of_values *
-                                 self.sum_of_values) /
+                                (self.sum_of_values ** 2) /
                                 self.examples_seen) / (self.examples_seen - 1)
                     sd = np.sqrt(variance, out=np.zeros_like(variance),
                                  where=variance >= 0.0)
                     # Samples are normalized using just one sd, as proposed in
                     # the iSoup-Tree method
                     predictions[i] = normalized_meta_prediction * sd + mean
-            elif self.leaf_prediction == self._ADAPTIVE:
+            elif self.leaf_prediction == _ADAPTIVE:
                 if self.examples_seen > 1:
                     # Mean predictor
                     votes = self.get_votes_for_instance(X[i]).copy()
@@ -310,36 +233,24 @@ class StackedSingleTargetHoeffdingTreeRegressor(iSOUPTreeRegressor, MultiOutputM
                     sum_of_values = votes[1]
                     pred_M = sum_of_values / number_of_examples_seen
 
-                    # Perceptron variants
+                    # Standard perceptron
+                    normalized_sample = self.normalize_sample(X[i])
                     perceptron_weights = self.get_weights_for_instance(X[i])
-                    if perceptron_weights is None:
-                        # Instance was sorted to a non-learning node: use
-                        # mean prediction
-                        predictions[i] = pred_M
-                        continue
-                    else:
-                        normalized_sample = self.normalize_sample(X[i])
 
-                        # Standard perceptron
-                        normalized_base_prediction = np.matmul(
-                            perceptron_weights[0], normalized_sample
-                        )
-                        # Stacked perceptron
-                        normalized_meta_prediction = np.matmul(
-                            perceptron_weights[1],
-                            np.append(normalized_base_prediction, 1.0)
-                        )
+                    normalized_base_prediction = perceptron_weights[0] @ \
+                        normalized_sample
+                    normalized_meta_prediction = perceptron_weights[1] @ \
+                        np.append(normalized_base_prediction, 1.0)
 
-                        mean = self.sum_of_values / self.examples_seen
-                        variance = (self.sum_of_squares -
-                                    (self.sum_of_values *
-                                     self.sum_of_values) /
-                                    self.examples_seen) / (self.examples_seen - 1)
-                        sd = np.sqrt(variance, out=np.zeros_like(variance),
-                                     where=variance >= 0.0)
+                    mean = self.sum_of_values / self.examples_seen
+                    variance = (self.sum_of_squares -
+                                (self.sum_of_values ** 2) /
+                                self.examples_seen) / (self.examples_seen - 1)
+                    sd = np.sqrt(variance, out=np.zeros_like(variance),
+                                 where=variance >= 0.0)
 
-                        pred_P = normalized_base_prediction * sd + mean
-                        pred_SP = normalized_meta_prediction * sd + mean
+                    pred_P = normalized_base_prediction * sd + mean
+                    pred_SP = normalized_meta_prediction * sd + mean
 
                     # Gets faded errors for the related leaf predictors
                     fmae = self._get_predictors_faded_error(X[i])
@@ -451,9 +362,26 @@ class StackedSingleTargetHoeffdingTreeRegressor(iSOUPTreeRegressor, MultiOutputM
                     node.get_observed_class_distribution()
                 )
                 for i in range(split_decision.num_splits()):
-                    new_child = self._new_learning_node(
-                        split_decision.resulting_class_distribution_from_split(i), node
-                    )
+                    if self.leaf_prediction == _PERCEPTRON:
+                        new_child = self._new_learning_node(
+                            split_decision.
+                            resulting_class_distribution_from_split(i),
+                            node.perceptron_weight
+                        )
+                    elif self.leaf_prediction == _ADAPTIVE:
+                        new_child = self._new_learning_node(
+                            split_decision.
+                            resulting_class_distribution_from_split(i),
+                            node.perceptron_weight
+                        )
+                        # Resets faded errors
+                        new_child.fMAE_M = np.zeros(self._n_targets,
+                                                    dtype=np.float64)
+                        new_child.fMAE_P = np.zeros(self._n_targets,
+                                                    dtype=np.float64)
+                        new_child.fMAE_SP = np.zeros(self._n_targets,
+                                                     dtype=np.float64)
+
                     new_split.set_child(i, new_child)
                 self._active_leaf_node_cnt -= 1
                 self._decision_node_cnt += 1
@@ -464,3 +392,38 @@ class StackedSingleTargetHoeffdingTreeRegressor(iSOUPTreeRegressor, MultiOutputM
                     parent.set_child(parent_idx, new_split)
             # Manage memory
             self.enforce_tracker_limit()
+
+    def _deactivate_learning_node(self,
+                                  to_deactivate: ActiveLearningNode,
+                                  parent: SplitNode,
+                                  parent_branch: int):
+        """Deactivate a learning node.
+
+        Parameters
+        ----------
+        to_deactivate: ActiveLearningNode
+            The node to deactivate.
+        parent: SplitNode
+            The node's parent.
+        parent_branch: int
+            Parent node's branch index.
+        """
+        if self.leaf_prediction == _PERCEPTRON:
+            new_leaf = SSTInactiveLearningNode(
+                to_deactivate.get_observed_class_distribution(),
+                to_deactivate.perceptron_weight
+            )
+        elif self.leaf_prediction == _ADAPTIVE:
+            new_leaf = SSTInactiveLearningNodeAdaptive(
+                to_deactivate.get_observed_class_distribution(),
+                to_deactivate.perceptron_weight
+            )
+            new_leaf.fMAE_M = to_deactivate.fMAE_M
+            new_leaf.fMAE_P = to_deactivate.fMAE_P
+            new_leaf.fMAE_SP = to_deactivate.fMAE_SP
+        if parent is None:
+            self._tree_root = new_leaf
+        else:
+            parent.set_child(parent_branch, new_leaf)
+        self._active_leaf_node_cnt -= 1
+        self._inactive_leaf_node_cnt += 1

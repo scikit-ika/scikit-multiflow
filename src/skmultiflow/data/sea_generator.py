@@ -4,7 +4,7 @@ from skmultiflow.utils import check_random_state
 
 
 class SEAGenerator(Stream):
-    r""" SEA stream generator.
+    """ SEA stream generator.
     
     This generator is an implementation of the data stream with abrupt 
     concept drift, first described in Street and Kim's 'A streaming 
@@ -68,6 +68,7 @@ class SEAGenerator(Stream):
     >>> # Setting up the stream
     >>> stream = SEAGenerator(classification_function = 2, random_state = 112, balance_classes = False,
     ... noise_percentage = 0.28)
+    >>> stream.prepare_for_use()
     >>> # Retrieving one sample
     >>> stream.next_sample()
     (array([[ 3.75057129,  6.4030462 ,  9.50016579]]), array([ 0.]))
@@ -109,11 +110,12 @@ class SEAGenerator(Stream):
         self.next_class_should_be_zero = False
         self.name = "SEA Generator"
 
+        self.__configure()
+
+    def __configure(self):
         self.target_names = ["target_0"]
         self.feature_names = ["att_num_" + str(i) for i in range(self.n_features)]
         self.target_values = [i for i in range(self.n_classes)]
-
-        self._prepare_for_use()
 
     @property
     def classification_function(self):
@@ -190,12 +192,21 @@ class SEAGenerator(Stream):
         else:
             raise ValueError("noise percentage should be in [0.0..1.0], {} was passed".format(noise_percentage))
 
-    def _prepare_for_use(self):
+    def prepare_for_use(self):
+        """
+        Prepares the stream for use.
+
+        Notes
+        -----
+        This functions should always be called after the stream initialization.
+
+        """
         self._random_state = check_random_state(self.random_state)
         self.next_class_should_be_zero = False
+        self.sample_idx = 0
 
     def next_sample(self, batch_size=1):
-        """ Returns next sample from the stream.
+        """ next_sample
         
         The sample generation works as follows: The three attributes are 
         generated with the random generator, initialized with the seed passed 
@@ -210,7 +221,7 @@ class SEAGenerator(Stream):
         
         Parameters
         ----------
-        batch_size: int (optional, default=1)
+        batch_size: int
             The number of samples to return.
         
         Returns

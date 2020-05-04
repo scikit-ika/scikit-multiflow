@@ -76,11 +76,12 @@ class HyperplaneGenerator(Stream):
         self._sigma = np.zeros(self.n_features)
         self.name = "Hyperplane Generator"
 
+        self.__configure()
+
+    def __configure(self):
         self.target_names = ["target_0"]
         self.feature_names = ["att_num_" + str(i) for i in range(self.n_features)]
         self.target_values = [i for i in range(self.n_classes)]
-
-        self._prepare_for_use()
 
     @property
     def n_drift_features(self):
@@ -176,15 +177,24 @@ class HyperplaneGenerator(Stream):
         else:
             raise ValueError("sigma percentage should be in [0.0..1.0], {} was passed".format(sigma_percentage))
 
-    def _prepare_for_use(self):
+    def prepare_for_use(self):
+        """
+        Prepares the stream for use.
+
+        Notes
+        -----
+        This functions should always be called after the stream initialization.
+
+        """
         self._random_state = check_random_state(self.random_state)
         self._next_class_should_be_zero = False
+        self.sample_idx = 0
         for i in range(self.n_features):
             self._weights[i] = self._random_state.rand()
             self._sigma[i] = 1 if (i < self.n_drift_features) else 0
 
     def next_sample(self, batch_size=1):
-        """ Returns next sample from the stream.
+        """ next_sample
 
         The sample generation works as follows: The features are generated
         with the random generator, initialized with the seed passed by the
@@ -195,7 +205,7 @@ class HyperplaneGenerator(Stream):
 
         Parameters
         ----------
-        batch_size: int (optional, default=1)
+        batch_size: int
             The number of samples to return.
 
         Returns

@@ -7,7 +7,7 @@ from skmultiflow.utils import FastBuffer, get_dimensions
 
 
 class MissingValuesCleaner(StreamTransform):
-    """ Fill missing values with some defined value.
+    """ Fills missing values with some defined value.
 
     Provides a simple way to replace missing values in data samples with some value. The imputation value
     can be set via a set of imputation strategies.
@@ -35,7 +35,8 @@ class MissingValuesCleaner(StreamTransform):
     >>> from skmultiflow.transform.missing_values_cleaner import MissingValuesCleaner
     >>> # Setting up a stream
     >>> stream = FileStream('skmultiflow/data/datasets/covtype.csv', -1, 1)
-    >>> # Setting up the filter to substitute values -47 by the median of the
+    >>> stream.prepare_for_use()
+    >>> # Setting up the filter to substitute values -47 by the median of the 
     >>> # last 10 samples
     >>> cleaner = MissingValuesCleaner(-47, 'median', 10)
     >>> X, y = stream.next_sample(10)

@@ -79,7 +79,7 @@ class Node(metaclass=ABCMeta):
         ----------
         X: numpy.ndarray of length equal to the number of features.
            Data instances.
-        ht: HoeffdingTreeClassifier
+        ht: HoeffdingTree
             The Hoeffding Tree.
 
         Returns
@@ -102,7 +102,7 @@ class Node(metaclass=ABCMeta):
         """
         count = 0
         for _, weight in self._observed_class_distribution.items():
-            if weight != 0:
+            if weight is not 0:
                 count += 1
                 if count == 2:  # No need to count beyond this point
                     break
@@ -140,7 +140,7 @@ class Node(metaclass=ABCMeta):
 
         Parameters
         ----------
-        ht: HoeffdingTreeClassifier
+        ht: HoeffdingTree
             The tree to describe.
         buffer: string
             The string buffer where the tree's structure will be stored
@@ -150,7 +150,7 @@ class Node(metaclass=ABCMeta):
         """
         buffer[0] += textwrap.indent('Leaf = ', ' ' * indent)
 
-        if ht._estimator_type == 'classifier':
+        try:
             class_val = max(
                 self._observed_class_distribution,
                 key=self._observed_class_distribution.get
@@ -158,19 +158,10 @@ class Node(metaclass=ABCMeta):
             buffer[0] += 'Class {} | {}\n'.format(
                 class_val, self._observed_class_distribution
             )
-        else:
-            text = '{'
-            for i, (k, v) in enumerate(self._observed_class_distribution.items()):
-                # Multi-target regression case
-                if hasattr(v, 'shape') and len(v.shape) > 0:
-                    text += '{}: ['.format(k)
-                    text += ', '.join(['{:.4f}'.format(e) for e in v.tolist()])
-                    text += ']'
-                else:  # Single-target regression
-                    text += '{}: {:.4f}'.format(k, v)
-                text += ', ' if i < len(self._observed_class_distribution) - 1 else ''
-            text += '}'
-            buffer[0] += 'Statistics {}\n'.format(text)  # Regression problems
+        except ValueError:  # Regression problems
+            buffer[0] += 'Statistics {}\n'.format(
+                self._observed_class_distribution
+            )
 
     # TODO
     def get_description(self):

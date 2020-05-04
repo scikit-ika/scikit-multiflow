@@ -29,7 +29,7 @@ class LCLearningNodeNBA(LCLearningNodeNB):
             Instance class.
         weight: float
             The instance's weight.
-        ht: HoeffdingTreeClassifier
+        ht: HoeffdingTree
             The Hoeffding Tree to update.
 
         """
@@ -57,7 +57,7 @@ class LCLearningNodeNBA(LCLearningNodeNB):
         ----------
         X: numpy.ndarray of length equal to the number of features.
             Instance attributes.
-        ht: HoeffdingTreeClassifier
+        ht: HoeffdingTree
             Hoeffding Tree.
 
         Returns

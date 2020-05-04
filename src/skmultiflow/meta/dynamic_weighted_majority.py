@@ -4,21 +4,8 @@ import numpy as np
 from skmultiflow.core import BaseSKMObject, ClassifierMixin, MetaEstimatorMixin
 from skmultiflow.bayes import NaiveBayes
 
-import warnings
 
-
-def DynamicWeightedMajority(n_estimators=5, base_estimator=NaiveBayes(), period=50, beta=0.5,
-                            theta=0.01):     # pragma: no cover
-    warnings.warn("'DynamicWeightedMajority' has been renamed to 'DynamicWeightedMajorityClassifier' in v0.5.0.\n"
-                  "The old name will be removed in v0.7.0", category=FutureWarning)
-    return DynamicWeightedMajorityClassifier(n_estimators=n_estimators,
-                                             base_estimator=base_estimator,
-                                             period=period,
-                                             beta=beta,
-                                             theta=theta)
-
-
-class DynamicWeightedMajorityClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
+class DynamicWeightedMajority(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
     """ Dynamic Weighted Majority ensemble classifier.
 
     Parameters
@@ -47,38 +34,6 @@ class DynamicWeightedMajorityClassifier(BaseSKMObject, ClassifierMixin, MetaEsti
     .. [1] Kolter and Maloof. Dynamic weighted majority: An ensemble method
        for drifting concepts. The Journal of Machine Learning Research,
        8:2755-2790, December 2007. ISSN 1532-4435.
-
-    Examples
-    --------
-    .. code-block:: python
-
-       # Imports
-       from skmultiflow.data import SEAGenerator
-       from skmultiflow.meta import DynamicWeightedMajorityClassifier
-
-       # Setup a data stream
-       stream = SEAGenerator(random_state=1)
-
-       # Setup Dynamic Weighted Majority Ensemble Classifier
-       dwm = DynamicWeightedMajorityClassifier()
-
-       # Setup varibles to control loop and track performance
-       n_samples = 0
-       correct_cnt = 0
-       max_samples = 200
-
-       # Train the classifier with the samples provided by the data stream
-       while n_samples < max_samples and stream.has_more_samples():
-           X, y = stream.next_sample()
-           y_pred = dynamic_weighted_majority_classifier.predict(X)
-           if y[0] == y_pred[0]:
-               correct_cnt += 1
-           dwm = dwm.partial_fit(X, y)
-           n_samples += 1
-
-       # Display results
-       print('{} samples analyzed.'.format(n_samples))
-       print('Dynamic Weighted Majority Classifier accuracy: {}'.format(correct_cnt / n_samples))
     """
 
     class WeightedExpert:
@@ -99,7 +54,7 @@ class DynamicWeightedMajorityClassifier(BaseSKMObject, ClassifierMixin, MetaEsti
     def __init__(self, n_estimators=5, base_estimator=NaiveBayes(),
                  period=50, beta=0.5, theta=0.01):
         """
-        Creates a new instance of DynamicWeightedMajorityClassifier.
+        Creates a new instance of DynamicWeightedMajority.
         """
         super().__init__()
 
@@ -141,7 +96,7 @@ class DynamicWeightedMajorityClassifier(BaseSKMObject, ClassifierMixin, MetaEsti
 
         Returns
         -------
-        DynamicWeightedMajorityClassifier
+        DynamicWeightedMajority
             self
         """
         for i in range(len(X)):

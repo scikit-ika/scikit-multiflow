@@ -133,7 +133,7 @@ class SplitNode(Node):
             Subtree depth, 0 if node is a leaf.
         """
         max_child_depth = 0
-        for child in self._children.values():
+        for child in self._children:
             if child is not None:
                 depth = child.subtree_depth()
                 if depth > max_child_depth:
@@ -145,7 +145,7 @@ class SplitNode(Node):
 
         Parameters
         ----------
-        ht: HoeffdingTreeClassifier
+        ht: HoeffdingTree
             The tree to describe.
         buffer: string
             The buffer where the tree's structure will be stored.

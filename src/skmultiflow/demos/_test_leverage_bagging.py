@@ -1,16 +1,16 @@
 import warnings, logging
-from skmultiflow.meta import LeveragingBaggingClassifier
-from skmultiflow.lazy import KNNClassifier
+from skmultiflow.meta import LeverageBagging
+from skmultiflow.lazy import KNN
 from skmultiflow.data import SEAGenerator
 
 
 def demo():
     """ _test_leverage_bagging
 
-    This demo tests the LeveragingBaggingClassifier on a file stream, which gives
+    This demo tests the LeverageBagging classifier on a file stream, which gives 
     instances coming from a SEA generator. 
 
-    The test computes the performance of the LeveragingBaggingClassifier as well
+    The test computes the performance of the LeverageBagging classifier as well 
     as the time to create the structure and classify max_samples (2000 by default) 
     instances.
 
@@ -18,9 +18,9 @@ def demo():
     logging.basicConfig(format='%(message)s', level=logging.INFO)
     warnings.filterwarnings("ignore", ".*Passing 1d.*")
     stream = SEAGenerator(1, noise_percentage=0.067, random_state=1)
-
-    clf = LeveragingBaggingClassifier(base_estimator=KNNClassifier(n_neighbors=8, max_window_size=2000, leaf_size=30),
-                                      n_estimators=1, random_state=1)
+    stream.prepare_for_use()
+    clf = LeverageBagging(base_estimator=KNN(n_neighbors=8, max_window_size=2000, leaf_size=30), n_estimators=1,
+                          random_state=1)
     sample_count = 0
     correctly_classified = 0
     max_samples = 2000

@@ -1,8 +1,8 @@
 from skmultiflow.data import WaveformGenerator
 from sklearn.linear_model import SGDClassifier
 from skmultiflow.evaluation import EvaluateHoldout
-from skmultiflow.lazy import KNNADWINClassifier
-from skmultiflow.trees import HoeffdingTreeClassifier
+from skmultiflow.lazy import KNNAdwin
+from skmultiflow.trees import HoeffdingTree
 
 
 def demo(output_file=None, instances=40000):
@@ -24,10 +24,11 @@ def demo(output_file=None, instances=40000):
     # Setup the File Stream
     # stream = FileStream("../data/datasets/covtype.csv", -1, 1)
     stream = WaveformGenerator()
+    stream.prepare_for_use()
 
     # Setup the classifier
-    clf_one = HoeffdingTreeClassifier()
-    # clf_two = KNNADWINClassifier(n_neighbors=8, max_window_size=2000)
+    clf_one = HoeffdingTree()
+    # clf_two = KNNAdwin(n_neighbors=8, max_window_size=2000)
     # classifier = PassiveAggressiveClassifier()
     # classifier = SGDRegressor()
     # classifier = PerceptronMask()

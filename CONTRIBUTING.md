@@ -19,25 +19,7 @@ If you are not familiar with Git or GitHub, here are good resources to start in 
 
 ## Development
 This section contains relevant information for development, including project setup, coding best practices, etc.
-
-### Dependencies
-
-`scikit-multiflow` works with Python 3.5+ **only**.
-
-`scikit-multiflow` requires [numpy](www.numpy.org) to be already installed
-in your system. There are multiple ways to install `numpy`, the easiest is
-using [pip](https://pip.pypa.io/en/stable/#):
-
-```bash
-$ pip install -U numpy
-```
-
-From v0.5.0, [Cython](https://cython.org/) is also required. Cython can also be installed using pip:
-
-```bash
-$ pip install -U Cython
-```
-
+ 
 ### pip setup in editable mode
 As default, `pip` installs a *fixed* version of a python package. However, during development, new code is added to a project incrementally and it is desired for developers to "see" these changes reflected immediately. For this purpose, `pip install` provides an `editable mode` option, to avoid re-running the setup script as new code is added.
 
@@ -90,73 +72,3 @@ If you are modifying existing code:
     * The documentation page is hosted in the **gh-pages** branch.
 
 * When adding/modifying documentation, it is recommended to generate the html page locally to ensure that it is correctly generated and the content is rendered as expected.
-
-## Naming convention for new methods
-
-Naming methods properly is important for multiple reasons:
-- The name of the method is the first thing that the user sees, so it is vital to provide key information at this point.
-- Reduces the mental load for the user.
-- Reduces the chances of making mistakes.
-- It keeps the structure of the project clean.
-
-### Recommendations when naming a new method
-- Choose a name that is clear and concise.
-- Identify the task type (depends on context): classifier, regressor, etc.
-- Avoid acronyms as much as possible: e.g. `HoeffdingAdaptiveTree` instead of `HAT`
-  There are cases where an acronym is acceptable, e.g. if a method's name is too long
-
-### Convention
-
-`method's name` + `type
-
-where `type` is optional since in some cases it could be inferred from the method/class name itself. E.g. `NaiveBayes`
-
-### Example code in docstrings
-
-The documentation of a new method shall include an example of its usage (or more if required). Code examples shall be added into a method's docstring under the **"Examples"** section. Code examples shall be:
-
-* Clear.
-* Concise.
-* Reproducible.
-* Focus on the method being documented.
-
-The goal is for the user to be able to run the example code without requiring any modifications.
-
-
-#### Example code template
-
-The following code snippet is intended as a template and should be modified accordingly:
-
-```python
-   
-# Import required packages such as estimators, generators, etc
-from skmultiflow.data import SEAGenerator
-from skmultiflow.bayes import NaiveBayes
-
-# Setup a data stream
-stream = SEAGenerator(random_state=1)
-
-# Prepare stream for use
-stream.prepare_for_use()
-
-# Variables to control loop and track performance
-n_samples = 0
-correct_cnt = 0
-max_samples = 200
-
-# Setup the desired estimator
-estimator = NaiveBayes(nominal_attributes=None)
-
-# Run test-then-train loop for max_samples or while there is data in the stream
-while n_samples < max_samples and stream.has_more_samples():
-   X, y = stream.next_sample()
-   y_pred = estimator.predict(X)
-   if y[0] == y_pred[0]:
-       correct_cnt += 1
-   estimator.partial_fit(X, y)
-   n_samples += 1
-
-print('{} samples analyzed.'.format(n_samples))   
-print('Estimator accuracy: {}'.format(correct_cnt / n_samples))
-```
-

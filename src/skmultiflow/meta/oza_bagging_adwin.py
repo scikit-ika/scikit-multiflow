@@ -1,27 +1,17 @@
 import copy as cp
 
-from skmultiflow.meta import OzaBaggingClassifier
-from skmultiflow.lazy import KNNADWINClassifier
+from skmultiflow.meta import OzaBagging
+from skmultiflow.lazy import KNNAdwin
 from skmultiflow.drift_detection import ADWIN
 from skmultiflow.utils.utils import *
 
-import warnings
 
-
-def OzaBaggingAdwin(base_estimator=KNNADWINClassifier(), n_estimators=10, random_state=None):     # pragma: no cover
-    warnings.warn("'OzaBaggingAdwin' has been renamed to 'OzaBaggingADWINClassifier' in v0.5.0.\n"
-                  "The old name will be removed in v0.7.0", category=FutureWarning)
-    return OzaBaggingADWINClassifier(base_estimator=base_estimator,
-                                     n_estimators=n_estimators,
-                                     random_state=random_state)
-
-
-class OzaBaggingADWINClassifier(OzaBaggingClassifier):
+class OzaBaggingAdwin(OzaBagging):
     """ Oza Bagging ensemble classifier with ADWIN change detector.
 
     Parameters
     ----------
-    base_estimator: skmultiflow.core.BaseSKMObject or sklearn.BaseEstimator (default=KNNADWINClassifier)
+    base_estimator: skmultiflow.core.BaseSKMObject or sklearn.BaseEstimator (default=KNNAdwin)
         Each member of the ensemble is an instance of the base estimator.
 
     n_estimators: int (default=10)
@@ -56,14 +46,14 @@ class OzaBaggingADWINClassifier(OzaBaggingClassifier):
     Examples
     --------
     >>> # Imports
-    >>> from skmultiflow.meta import OzaBaggingADWINClassifier
-    >>> from skmultiflow.lazy import KNNClassifier
+    >>> from skmultiflow.meta import OzaBaggingAdwin
+    >>> from skmultiflow.lazy.knn import KNN
     >>> from skmultiflow.data.sea_generator import SEAGenerator
     >>> # Setting up the stream
     >>> stream = SEAGenerator(1, noise_percentage=6.7)
-    >>> # Setting up the OzaBaggingADWINClassifier to work with KNN as base estimator
-    >>> clf = OzaBaggingADWINClassifier(base_estimator=KNNClassifier(n_neighbors=8, max_window_size=2000, leaf_size=30),
-    ...                                 n_estimators=2)
+    >>> stream.prepare_for_use()
+    >>> # Setting up the OzaBagginAdwin classifier to work with KNN classifiers
+    >>> clf = OzaBaggingAdwin(base_estimator=KNN(n_neighbors=8, max_window_size=2000, leaf_size=30), n_estimators=2)
     >>> # Keeping track of sample count and correct prediction count
     >>> sample_count = 0
     >>> corrects = 0
@@ -82,12 +72,12 @@ class OzaBaggingADWINClassifier(OzaBaggingClassifier):
     >>> # Displaying the results
     >>> print(str(sample_count) + ' samples analyzed.')
     2000 samples analyzed.
-    >>> print('OzaBaggingADWINClassifier performance: ' + str(corrects / sample_count))
-    OzaBaggingADWINClassifier performance: 0.9645
+    >>> print('OzaBaggingAdwin classifier performance: ' + str(corrects / sample_count))
+    OzaBaggingAdwin classifier performance: 0.9645
     
     """
 
-    def __init__(self, base_estimator=KNNADWINClassifier(), n_estimators=10, random_state=None):
+    def __init__(self, base_estimator=KNNAdwin(), n_estimators=10, random_state=None):
         super().__init__(base_estimator, n_estimators, random_state)
         # default values
         self.adwin_ensemble = None
@@ -126,7 +116,7 @@ class OzaBaggingADWINClassifier(OzaBaggingClassifier):
 
         Returns
         _______
-        OzaBaggingADWINClassifier
+        OzaBaggingAdwin
             self
 
         Notes

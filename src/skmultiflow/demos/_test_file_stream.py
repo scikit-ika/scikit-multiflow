@@ -1,4 +1,4 @@
-from skmultiflow.trees import HoeffdingTreeClassifier
+from skmultiflow.trees import HoeffdingTree
 
 from skmultiflow.evaluation import EvaluatePrequential
 from skmultiflow.data import FileStream
@@ -6,11 +6,12 @@ from skmultiflow.data import FileStream
 
 def demo(): 
 
-    # The classifier we will use (other options: SAMKNNClassifier, LeveragingBaggingClassifier, SGD)
-    h = HoeffdingTreeClassifier()
+    # The classifier we will use (other options: SAMKNN, LeverageBagging, SGD)
+    h = HoeffdingTree()
 
     # Setup Stream
     stream = FileStream("../data/datasets/sea_stream.csv")
+    stream.prepare_for_use()
 
     pretrain = 100
     evaluator = EvaluatePrequential(pretrain_size=pretrain, output_file='test_filestream.csv', max_samples=10000,

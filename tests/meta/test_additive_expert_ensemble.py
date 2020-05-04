@@ -1,4 +1,4 @@
-from skmultiflow.meta import AdditiveExpertEnsembleClassifier
+from skmultiflow.meta import AdditiveExpertEnsemble
 from skmultiflow.data import SEAGenerator
 from skmultiflow.bayes import NaiveBayes
 import numpy as np
@@ -6,9 +6,10 @@ import numpy as np
 
 def test_additive_expert_ensemble_weakest():
     stream = SEAGenerator(1, noise_percentage=0.067, random_state=112)
+    stream.prepare_for_use()
 
-    learner = AdditiveExpertEnsembleClassifier(3, NaiveBayes(), beta=0.5, gamma=0.1,
-                                               pruning='weakest')
+    learner = AdditiveExpertEnsemble(3, NaiveBayes(), beta=0.5, gamma=0.1,
+                                     pruning='weakest')
 
     cnt = 0
     max_samples = 5000
@@ -44,17 +45,17 @@ def test_additive_expert_ensemble_weakest():
 
     assert type(learner.predict(X)) == np.ndarray
 
-    expected_info = "AdditiveExpertEnsembleClassifier(base_estimator=NaiveBayes(nominal_attributes=None),\n" \
-                    "                                 beta=0.5, gamma=0.1, n_estimators=3,\n" \
-                    "                                 pruning='weakest')"
+    expected_info = "AdditiveExpertEnsemble(base_estimator=NaiveBayes(nominal_attributes=None),\n" \
+                    "                       beta=0.5, gamma=0.1, n_estimators=3, pruning='weakest')"
     assert learner.get_info() == expected_info
 
 
 def test_additive_expert_ensemble_oldest():
     stream = SEAGenerator(1, noise_percentage=0.067, random_state=112)
+    stream.prepare_for_use()
 
-    learner = AdditiveExpertEnsembleClassifier(10, NaiveBayes(), beta=0.5, gamma=0.1,
-                                               pruning='oldest')
+    learner = AdditiveExpertEnsemble(10, NaiveBayes(), beta=0.5, gamma=0.1,
+                                     pruning='oldest')
 
     cnt = 0
     max_samples = 5000

@@ -1,7 +1,7 @@
 from skmultiflow.core import Pipeline
 from skmultiflow.evaluation import EvaluatePrequential
 from skmultiflow.data import WaveformGenerator
-from skmultiflow.trees import HoeffdingTreeClassifier
+from skmultiflow.trees import HoeffdingTree
 
 
 def demo():
@@ -14,19 +14,22 @@ def demo():
     """
     # # Setup the stream
     # stream = FileStream("../data/datasets/covtype.csv", -1, 1)
+    # stream.prepare_for_use()
     # # If used for Hoeffding Trees then need to pass indices for Nominal attributes
 
     # Test with RandomTreeGenerator
     # stream = RandomTreeGenerator(n_classes=2, n_numerical_attributes=5)
+    # stream.prepare_for_use()
 
     # Test with WaveformGenerator
     stream = WaveformGenerator()
+    stream.prepare_for_use()
 
     # Setup the classifier
     #classifier = PerceptronMask()
     #classifier = NaiveBayes()
     #classifier = PassiveAggressiveClassifier()
-    classifier = HoeffdingTreeClassifier()
+    classifier = HoeffdingTree()
 
     # Setup the pipeline
     pipe = Pipeline([('Hoeffding Tree', classifier)])

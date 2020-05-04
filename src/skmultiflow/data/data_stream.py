@@ -1,8 +1,5 @@
 import pandas as pd
 import numpy as np
-
-import warnings
-
 from skmultiflow.data.base_stream import Stream
 
 
@@ -32,9 +29,6 @@ class DataStream(Stream):
     name: str, optional (default=None)
         A string to id the data.
 
-    allow_nan: bool, optional (default=False)
-        If True, allows NaN values in the data. Otherwise, an error is raised.
-
     Notes
     -----
     The stream object provides upon request a number of samples, in a way such that old samples cannot be accessed
@@ -46,7 +40,7 @@ class DataStream(Stream):
     _REGRESSION = 'regression'
     _Y_is_defined = False
 
-    def __init__(self, data, y=None, target_idx=-1, n_targets=1, cat_features=None, name=None, allow_nan=False):
+    def __init__(self, data, y=None, target_idx=-1, n_targets=1, cat_features=None, name=None):
         super().__init__()
         self.X = None
         self.y = y
@@ -59,8 +53,9 @@ class DataStream(Stream):
         self.data = data
         self._is_ready = False
         self.name = name
-        self.allow_nan = allow_nan
+        self.__configure()
 
+    def __configure(self):
         if self._Y_is_defined:
             self.y = pd.DataFrame(self.y)
             if self.y.shape[0] != self.data.shape[0]:
@@ -69,8 +64,6 @@ class DataStream(Stream):
                 self.X = pd.DataFrame(self.data)
                 self.target_idx = -self.y.shape[1]
                 self.n_targets = self.y.shape[1]
-
-        self._prepare_for_use()
 
     @property
     def y(self):
@@ -243,7 +236,15 @@ class DataStream(Stream):
 
         self._cat_features_idx = cat_features_idx
 
-    def _prepare_for_use(self):
+    def prepare_for_use(self):
+        """
+        Prepares the stream for use.
+
+        Notes
+        -----
+        This functions should always be called after the stream initialization.
+
+        """
         self.restart()
         if not self._is_ready:
             if self._Y_is_defined:
@@ -256,9 +257,6 @@ class DataStream(Stream):
     def _load_X_y(self):
 
         self.y = pd.DataFrame(self.y)
-
-        check_data_consistency(self.y, self.allow_nan)
-        check_data_consistency(self.X, self.allow_nan)
 
         self.n_samples, self.n_features = self.X.shape
         self.feature_names = self.X.columns.values.tolist()
@@ -284,8 +282,6 @@ class DataStream(Stream):
         self.target_values = self._get_target_values()
 
     def _load_data(self):
-
-        check_data_consistency(self.data, self.allow_nan)
 
         rows, cols = self.data.shape
         self.n_samples = rows
@@ -321,7 +317,10 @@ class DataStream(Stream):
         self.target_values = self._get_target_values()
 
     def restart(self):
-        """ Restarts the stream.
+        """ restart
+
+        Restarts the stream's sample feeding, while keeping all of its
+        parameters.
 
         It basically server the purpose of reinitializing the stream to
         its initial state.
@@ -332,14 +331,14 @@ class DataStream(Stream):
         self.current_sample_y = None
 
     def next_sample(self, batch_size=1):
-        """ Returns next sample from the stream.
+        """ next_sample
 
         If there is enough instances to supply at least batch_size samples, those
         are returned. If there aren't a tuple of (None, None) is returned.
 
         Parameters
         ----------
-        batch_size: int (optional, default=1)
+        batch_size: int
             The number of instances to return.
 
         Returns
@@ -412,33 +411,3 @@ class DataStream(Stream):
         return 'DataStream(n_targets={}, target_idx={}, cat_features={}, name={})'.\
             format(self.target_idx, self.n_targets, self.cat_features,
                    self.name if not self.name else "'" + self.name + "'")
-
-
-def check_data_consistency(raw_data_frame, allow_nan=False):
-    """
-    Check data consistency with respect to scikit-multiflow assumptions:
-
-    * Only numeric data types are used.
-    * Missing values are, in general, not supported.
-
-    Parameters
-    ----------
-    raw_data_frame: pandas.DataFrame
-        The data frame containing the data to check.
-
-    allow_nan: bool, optional (default=False)
-        If True, allows NaN values in the data. Otherwise, an error is raised.
-
-    """
-    if (raw_data_frame.dtypes == 'object').values.any():
-        # scikit-multiflow assumes that data is numeric
-        raise ValueError('Non-numeric data found:\n {}'
-                         'scikit-multiflow only supports numeric data.'.format(raw_data_frame.dtypes))
-
-    if raw_data_frame.isnull().values.any():
-        if not allow_nan:
-            raise ValueError("NaN values found. Missing values are not fully supported.\n"
-                             "You can deactivate this error via the 'allow_nan' option.")
-        else:
-            warnings.warn("NaN values found. Functionality is not guaranteed for some methods. Proceed with caution.",
-                          UserWarning)

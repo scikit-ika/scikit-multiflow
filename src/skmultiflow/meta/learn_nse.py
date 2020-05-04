@@ -4,22 +4,8 @@ from sklearn.tree import DecisionTreeClassifier
 
 from skmultiflow.core import BaseSKMObject, ClassifierMixin, MetaEstimatorMixin
 
-import warnings
 
-
-def LearnNSE(base_estimator=DecisionTreeClassifier(), window_size=250, slope=0.5, crossing_point=10, n_estimators=15,
-             pruning=None):     # pragma: no cover
-    warnings.warn("'LearnNSE' has been renamed to 'LearnPPNSEClassifier' in v0.5.0.\n"
-                  "The old name will be removed in v0.7.0", category=FutureWarning)
-    return LearnPPNSEClassifier(base_estimator=base_estimator,
-                                window_size=window_size,
-                                slope=slope,
-                                crossing_point=crossing_point,
-                                n_estimators=n_estimators,
-                                pruning=pruning)
-
-
-class LearnPPNSEClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
+class LearnNSE(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
     """ Learn++.NSE ensemble classifier.
 
     Learn++.NSE [1]_ is an ensemble of classifiers for incremental learning
@@ -54,38 +40,6 @@ class LearnPPNSEClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
         pruning=None: Don't prune classifiers
         pruning='age': Age-based
         pruning='error': Error-based
-
-    Examples
-    --------
-    .. code-block:: python
-
-       # Imports
-       from skmultiflow.data import SEAGenerator
-       from skmultiflow.meta import LearnPPNSEClassifier
-
-       # Setup a data stream
-       stream = SEAGenerator(random_state=1)
-
-       # Setup Dynamic Weighted Majority Ensemble Classifier
-       learn_pp_nse = LearnPPNSEClassifier()
-
-       # Setup varibles to control loop and track performance
-       n_samples = 0
-       correct_cnt = 0
-       max_samples = 200
-
-       # Train the classifier with the samples provided by the data stream
-       while n_samples < max_samples and stream.has_more_samples():
-           X, y = stream.next_sample()
-           y_pred = learn_pp_nse.predict(X)
-           if y[0] == y_pred[0]:
-               correct_cnt += 1
-           learn_pp_nse = learn_pp_nse.partial_fit(X, y, classes=stream.target_values)
-           n_samples += 1
-
-       # Display results
-       print('{} samples analyzed.'.format(n_samples))
-       print('LearnPP.NSE accuracy: {}'.format(correct_cnt / n_samples))
     """
 
     def __init__(self,
@@ -115,12 +69,9 @@ class LearnPPNSEClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
     @staticmethod
     def _train_model(estimator, X, y, classes=None):
         try:
-            estimator.fit(X, y, classes=classes)
-        except TypeError:
-            try:
-                estimator.fit(X, y)
-            except NotImplementedError:
-                estimator.partial_fit(X, y, classes=classes)
+            estimator.fit(X, y)
+        except (NotImplementedError, TypeError):
+            estimator.partial_fit(X, y, classes=classes)
 
     def partial_fit(self, X, y=None, classes=None, sample_weight=None):
         """
@@ -151,7 +102,7 @@ class LearnPPNSEClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
 
         Returns
         -------
-        LearnPPNSEClassifier
+        LearnNSE
             self
         """
 
@@ -184,9 +135,7 @@ class LearnPPNSEClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
                     self.instance_weights[votes == self.y_batch] = et / mt
 
                     # normalize instance weights (distribution)
-                    sum_weights = np.sum(self.instance_weights)
-                    if sum_weights > 0:
-                        self.instance_weights = self.instance_weights / sum_weights
+                    self.instance_weights = self.instance_weights / np.sum(self.instance_weights)
 
                     # Train base classifier with Dt
                     self._train_model(classifier, self.X_batch, self.y_batch, classes=self.classes)
@@ -270,38 +219,10 @@ class LearnPPNSEClassifier(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
                     h = self.ensemble[i]
                     y_predicts = h.predict_proba(X[m].reshape(1, -1))
                     y_predicts /= np.linalg.norm(y_predicts, ord=1, axis=1, keepdims=True)
-                    try:
-                        votes += self.ensemble_weights[i] * y_predicts
-                    except ValueError:
-                        if hasattr(h, 'classes_'):  # sklearn learner
-                            obs_classes = h.classes_
-                        elif hasattr(h, 'classes'):  # skmultiflow learner
-                            obs_classes = h.classes
-                        else:
-                            raise AttributeError(
-                                'The base estimator does not define the "classes" or "classes_" ' +
-                                'parameter. The base estimator must specify the classes it has ' +
-                                'observed during the training stage in order to maintain ' +
-                                'consistency across the ensemble.'
-                            )
-                        votes += self.ensemble_weights[i] * \
-                            self._fill_missing_probs(
-                                y_predicts, obs_classes, self.classes
-                            )
+                    votes += self.ensemble_weights[i] * y_predicts
 
             res.append(votes.reshape(len(classes)))
         return np.array(res)
-
-    def _fill_missing_probs(self, probs, obs_classes, all_classes):
-        proba_ordered = np.zeros(
-            (probs.shape[0], all_classes.size), dtype=np.float
-        )
-        sorted_classes = np.argsort(all_classes)
-        # Find positions to insert existing classes' probs to the complete set
-        # of classes
-        idx = sorted_classes[np.searchsorted(all_classes, obs_classes, sorter=sorted_classes)]
-        proba_ordered[:, idx] = probs
-        return proba_ordered
 
     def predict_proba(self, X):
         """ Predicts the probability of each sample belonging to each one of the

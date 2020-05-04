@@ -1,39 +1,21 @@
-from skmultiflow.trees import HoeffdingTreeClassifier
+import copy
+
+from skmultiflow.trees import HoeffdingTree
 from skmultiflow.trees.nodes import InactiveLearningNode
 from skmultiflow.trees.nodes import AdaLearningNode
 from skmultiflow.trees.nodes import AdaSplitNode
-from skmultiflow.utils import add_dict_values
 
 import numpy as np
 
-import warnings
+
+MAJORITY_CLASS = 'mc'
+NAIVE_BAYES = 'nb'
+NAIVE_BAYES_ADAPTIVE = 'nba'
+ERROR_WIDTH_THRESHOLD = 300
 
 
-def HAT(max_byte_size=33554432, memory_estimate_period=1000000, grace_period=200, split_criterion='info_gain',
-        split_confidence=0.0000001, tie_threshold=0.05, binary_split=False, stop_mem_management=False,
-        remove_poor_atts=False, no_preprune=False, leaf_prediction='nba', nb_threshold=0, nominal_attributes=None,
-        bootstrap_sampling=True, random_state=None):     # pragma: no cover
-    warnings.warn("'HAT' has been renamed to 'HoeffdingAdaptiveTreeClassifier' in v0.5.0.\n"
-                  "The old name will be removed in v0.7.0", category=FutureWarning)
-    return HoeffdingAdaptiveTreeClassifier(max_byte_size=max_byte_size,
-                                           memory_estimate_period=memory_estimate_period,
-                                           grace_period=grace_period,
-                                           split_criterion=split_criterion,
-                                           split_confidence=split_confidence,
-                                           tie_threshold=tie_threshold,
-                                           binary_split=binary_split,
-                                           stop_mem_management=stop_mem_management,
-                                           remove_poor_atts=remove_poor_atts,
-                                           no_preprune=no_preprune,
-                                           leaf_prediction=leaf_prediction,
-                                           nb_threshold=nb_threshold,
-                                           nominal_attributes=nominal_attributes,
-                                           bootstrap_sampling=bootstrap_sampling,
-                                           random_state=random_state)
-
-
-class HoeffdingAdaptiveTreeClassifier(HoeffdingTreeClassifier):
-    """ Hoeffding Adaptive Tree classifier.
+class HAT(HoeffdingTree):
+    """ Hoeffding Adaptive Tree.
 
     Parameters
     ----------
@@ -83,22 +65,10 @@ class HoeffdingAdaptiveTreeClassifier(HoeffdingTreeClassifier):
     nominal_attributes: list, optional
         List of Nominal attributes. If emtpy, then assume that all attributes are numerical.
 
-    bootstrap_sampling: bool, optional (default=True)
-        If True, perform bootstrap sampling in the leaf nodes.
-
-    random_state: int, RandomState instance or None, optional (default=None)
-       If int, random_state is the seed used by the random number generator;
-       If RandomState instance, random_state is the random number generator;
-       If None, the random number generator is the RandomState instance used
-       by `np.random`. Only used when ``bootstrap_sampling=True`` to direct the bootstrap sampling.
-
     Notes
     -----
     The Hoeffding Adaptive Tree [1]_ uses ADWIN [2]_ to monitor performance of branches on the tree and to replace them
     with new branches when their accuracy decreases if the new branches are more accurate.
-
-    The bootstrap sampling strategy is an improvement over the original Hoeffding Adaptive Tree algorithm.
-    It is enabled by default since, in general, it results in better performance.
 
     References
     ----------
@@ -110,13 +80,14 @@ class HoeffdingAdaptiveTreeClassifier(HoeffdingTreeClassifier):
 
     Examples
     --------
-    >>> from skmultiflow.trees import HoeffdingAdaptiveTreeClassifier
+    >>> from skmultiflow.trees.hoeffding_adaptive_tree import HAT
     >>> from skmultiflow.data.file_stream import FileStream
     >>> from skmultiflow.evaluation.evaluate_prequential import EvaluatePrequential
     >>> # Setup the File Stream
     >>> stream = FileStream("/skmultiflow/data/datasets/covtype.csv", -1, 1)
+    >>> stream.prepare_for_use()
     >>>
-    >>> classifier = HoeffdingAdaptiveTreeClassifier()
+    >>> classifier = HAT()
     >>> evaluator = EvaluatePrequential(pretrain_size=200, max_samples=50000, batch_size=1, n_wait=200, max_time=1000,
     >>>                                 output_file=None, show_plot=True, metrics=['kappa', 'kappa_t', 'performance'])
     >>>
@@ -126,7 +97,6 @@ class HoeffdingAdaptiveTreeClassifier(HoeffdingTreeClassifier):
     # =============================================
     # == Hoeffding Adaptive Tree implementation ===
     # =============================================
-    _ERROR_WIDTH_THRESHOLD = 300
 
     def __init__(self,
                  max_byte_size=33554432,
@@ -141,28 +111,24 @@ class HoeffdingAdaptiveTreeClassifier(HoeffdingTreeClassifier):
                  no_preprune=False,
                  leaf_prediction='nba',
                  nb_threshold=0,
-                 nominal_attributes=None,
-                 bootstrap_sampling=True,
-                 random_state=None):
+                 nominal_attributes=None):
 
-        super(HoeffdingAdaptiveTreeClassifier, self).__init__(max_byte_size=max_byte_size,
-                                                              memory_estimate_period=memory_estimate_period,
-                                                              grace_period=grace_period,
-                                                              split_criterion=split_criterion,
-                                                              split_confidence=split_confidence,
-                                                              tie_threshold=tie_threshold,
-                                                              binary_split=binary_split,
-                                                              stop_mem_management=stop_mem_management,
-                                                              remove_poor_atts=remove_poor_atts,
-                                                              no_preprune=no_preprune,
-                                                              leaf_prediction=leaf_prediction,
-                                                              nb_threshold=nb_threshold,
-                                                              nominal_attributes=nominal_attributes)
+        super(HAT, self).__init__(max_byte_size=max_byte_size,
+                                  memory_estimate_period=memory_estimate_period,
+                                  grace_period=grace_period,
+                                  split_criterion=split_criterion,
+                                  split_confidence=split_confidence,
+                                  tie_threshold=tie_threshold,
+                                  binary_split=binary_split,
+                                  stop_mem_management=stop_mem_management,
+                                  remove_poor_atts=remove_poor_atts,
+                                  no_preprune=no_preprune,
+                                  leaf_prediction=leaf_prediction,
+                                  nb_threshold=nb_threshold,
+                                  nominal_attributes=nominal_attributes)
         self.alternate_trees_cnt = 0
         self.pruned_alternate_trees_cnt = 0
         self.switch_alternate_trees_cnt = 0
-        self.bootstrap_sampling = bootstrap_sampling
-        self.random_state = random_state
         self._tree_root = None
 
     def reset(self):
@@ -171,7 +137,7 @@ class HoeffdingAdaptiveTreeClassifier(HoeffdingTreeClassifier):
         self.switch_alternate_trees_cnt = 0
         self._tree_root = None
 
-    # Override HoeffdingTreeClassifier
+    # Override HoeffdingTree
     def _partial_fit(self, X, y, sample_weight):
         if self._tree_root is None:
             self._tree_root = self._new_learning_node()
@@ -187,7 +153,7 @@ class HoeffdingAdaptiveTreeClassifier(HoeffdingTreeClassifier):
                                                   update_splitter_counts, nodes)
         return nodes
 
-    # Override HoeffdingTreeClassifier
+    # Override HoeffdingTree
     def get_votes_for_instance(self, X):
         result = {}
         if self._tree_root is not None:
@@ -201,14 +167,13 @@ class HoeffdingAdaptiveTreeClassifier(HoeffdingTreeClassifier):
                     if leaf_node is None:
                         leaf_node = fn.parent
                     dist = leaf_node.get_class_votes(X, self)
-                    # add elements to dictionary
-                    result = add_dict_values(result, dist, inplace=True)
+                    result.update(dist)  # add elements to dictionary
         return result
 
-    # Override HoeffdingTreeClassifier
+    # Override HoeffdingTree
     def _new_learning_node(self, initial_class_observations=None):
-        return AdaLearningNode(initial_class_observations, self.random_state)
+        return AdaLearningNode(initial_class_observations)
 
-    # Override HoeffdingTreeClassifier
+    # Override HoeffdingTree
     def new_split_node(self, split_test, class_observations):
-        return AdaSplitNode(split_test, class_observations, self.random_state)
+        return AdaSplitNode(split_test, class_observations)

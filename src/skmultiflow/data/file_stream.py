@@ -1,9 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
-
 from skmultiflow.data.base_stream import Stream
-from skmultiflow.data.data_stream import check_data_consistency
 
 
 class FileStream(Stream):
@@ -26,9 +24,6 @@ class FileStream(Stream):
     cat_features: list, optional (default=None)
         A list of indices corresponding to the location of categorical features.
 
-    allow_nan: bool, optional (default=False)
-        If True, allows NaN values in the data. Otherwise, an error is raised.
-
     Notes
     -----
     The stream object provides upon request a number of samples, in a way such that old samples cannot be accessed
@@ -40,6 +35,7 @@ class FileStream(Stream):
     >>> from skmultiflow.data.file_stream import FileStream
     >>> # Setup the stream
     >>> stream = FileStream('skmultiflow/data/datasets/sea_stream.csv')
+    >>> stream.prepare_for_use()
     >>> # Retrieving one sample
     >>> stream.next_sample()
     (array([[0.080429, 8.397187, 7.074928]]), array([0]))
@@ -65,7 +61,7 @@ class FileStream(Stream):
     _CLASSIFICATION = 'classification'
     _REGRESSION = 'regression'
 
-    def __init__(self, filepath, target_idx=-1, n_targets=1, cat_features=None, allow_nan=False):
+    def __init__(self, filepath, target_idx=-1, n_targets=1, cat_features=None):
         super().__init__()
 
         self.filepath = filepath
@@ -73,7 +69,6 @@ class FileStream(Stream):
         self.target_idx = target_idx
         self.cat_features = cat_features
         self.cat_features_idx = [] if self.cat_features is None else self.cat_features
-        self.allow_nan = allow_nan
 
         self.X = None
         self.y = None
@@ -86,6 +81,9 @@ class FileStream(Stream):
         if self.n_targets > 1 and self.target_idx == -1:
             self.target_idx = -self.n_targets
 
+        self.__configure()
+
+    def __configure(self):
         self.basename = os.path.basename(self.filepath)
         filename, extension = os.path.splitext(self.basename)
         if extension.lower() == '.csv':
@@ -93,8 +91,6 @@ class FileStream(Stream):
         else:
             raise ValueError('Unsupported format: ', extension)
         self.filename = filename
-
-        self._prepare_for_use()
 
     @property
     def target_idx(self):
@@ -170,9 +166,20 @@ class FileStream(Stream):
 
         self._cat_features_idx = cat_features_idx
 
-    def _prepare_for_use(self):
-        self.restart()
+    def prepare_for_use(self):
+        """ prepare_for_use
+
+        Prepares the stream for use.
+
+        Notes
+        -----
+        This functions should always be called after the stream initialization.
+
+        """
         self._load_data()
+        self.sample_idx = 0
+        self.current_sample_x = None
+        self.current_sample_y = None
 
     def _load_data(self):
         """ Reads the data provided by the user and separates the features and targets.
@@ -180,8 +187,8 @@ class FileStream(Stream):
         try:
             raw_data = self.read_function(self.filepath)
 
-            check_data_consistency(raw_data, self.allow_nan)
-
+            if any(raw_data.dtypes == 'object'):
+                raise ValueError('File contains text data.')
             rows, cols = raw_data.shape
             self.n_samples = rows
             labels = raw_data.columns.values.tolist()
@@ -218,7 +225,10 @@ class FileStream(Stream):
         pass
 
     def restart(self):
-        """ Restarts the stream.
+        """ restart
+
+        Restarts the stream's sample feeding, while keeping all of its
+        parameters.
 
         It basically server the purpose of reinitializing the stream to
         its initial state.
@@ -229,14 +239,14 @@ class FileStream(Stream):
         self.current_sample_y = None
 
     def next_sample(self, batch_size=1):
-        """ Returns next sample from the stream.
+        """ next_sample
 
         If there is enough instances to supply at least batch_size samples, those
         are returned. If there aren't a tuple of (None, None) is returned.
 
         Parameters
         ----------
-        batch_size: int (optional, default=1)
+        batch_size: int
             The number of instances to return.
 
         Returns

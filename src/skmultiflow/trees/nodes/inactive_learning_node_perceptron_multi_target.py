@@ -15,23 +15,22 @@ class InactiveLearningNodePerceptronMultiTarget(InactiveLearningNodePerceptron):
         online variance calculation. They refer to the number of observations
         (key '0'), the sum of the targets values (key '1'), and the sum of the
         squared targets values (key '2').
-    parent_node: ActiveLearningNodePerceptronMultiTarget (default=None)
-        A node containing statistics about observed data.
+    perceptron_weight: np.ndarray(n_targets, n_features) or None, optional
+        (default=None)
+        The weights for the linear models that predict the targets values. If
+        not passed, uniform values in the range [-1, 1] are used.
     random_state: int, RandomState instance or None, optional (default=None)
         If int, random_state is the seed used by the random number generator;
         If RandomState instance, random_state is the random number generator;
         If None, the random number generator is the RandomState instance used
         by `np.random`.
     """
-    def __init__(self, initial_class_observations, parent_node=None,
+    def __init__(self, initial_class_observations, perceptron_weight=None,
                  random_state=None):
         """ InactiveLearningNodeForRegression class constructor."""
         super().__init__(initial_class_observations)
 
-        if parent_node is None:
-            self.perceptron_weight = None
-        else:
-            self.perceptron_weight = parent_node.perceptron_weight
+        self.perceptron_weight = perceptron_weight
         self.random_state = check_random_state(random_state)
 
     def learn_from_instance(self, X, y, weight, rht):
@@ -45,7 +44,7 @@ class InactiveLearningNodePerceptronMultiTarget(InactiveLearningNodePerceptron):
             Instance targets.
         weight: float
             Instance weight.
-        rht: HoeffdingTreeRegressor
+        rht: RegressionHoeffdingTree
             Regression Hoeffding Tree to update.
         """
         if self.perceptron_weight is None:
@@ -91,13 +90,13 @@ class InactiveLearningNodePerceptronMultiTarget(InactiveLearningNodePerceptron):
             Targets values.
         learning_ratio: float
             perceptron learning ratio
-        rht: HoeffdingTreeRegressor
+        rht: RegressionHoeffdingTree
             Regression Hoeffding Tree to update.
         """
         normalized_sample = rht.normalize_sample(X)
         normalized_pred = self.predict(normalized_sample)
 
-        normalized_target_value = rht.normalize_target_value(y)
+        normalized_target_value = rht.normalized_target_value(y)
         self.perceptron_weight += learning_ratio * \
             np.matmul((normalized_target_value - normalized_pred)[:, None],
                       normalized_sample[None, :])

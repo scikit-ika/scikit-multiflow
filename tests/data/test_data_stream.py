@@ -1,9 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-
-import pytest
-
 from skmultiflow.data.data_stream import DataStream
 
 
@@ -11,6 +8,10 @@ def test_data_stream(test_path, package_path):
     test_file = os.path.join(package_path, 'src/skmultiflow/data/datasets/sea_stream.csv')
     raw_data = pd.read_csv(test_file)
     stream = DataStream(raw_data, name='Test')
+
+    assert not stream._Y_is_defined
+
+    stream.prepare_for_use()
 
     assert stream.n_remaining_samples() == 40000
 
@@ -74,6 +75,8 @@ def test_data_stream_X_y(test_path, package_path):
 
     assert stream._Y_is_defined
 
+    stream.prepare_for_use()
+
     assert stream.n_remaining_samples() == 40000
 
     expected_names = ['attrib1', 'attrib2', 'attrib3']
@@ -120,26 +123,3 @@ def test_data_stream_X_y(test_path, package_path):
     assert stream.n_targets == np.array(y).ndim
 
     assert stream.n_features == X.shape[1]
-
-
-def test_check_data():
-    # Test if data contains non-numeric values
-    data = pd.DataFrame(np.array([[1, 2, 3, 4, 5],
-                                  [6, 7, 8, 9, 10],
-                                  [11, 'invalid', 13, 14, 15]]))
-
-    with pytest.raises(ValueError):
-        DataStream(data=data, allow_nan=False)
-
-    # Test if data contains NaN values
-    data = pd.DataFrame(np.array([[1, 2, 3, 4, 5],
-                                  [6, 7, 8, 9, 10],
-                                  [11, np.nan, 13, 14, 15]]))
-
-    with pytest.raises(ValueError):
-        DataStream(data=data, allow_nan=False)
-
-    # Test warning for NaN values
-
-    with pytest.warns(UserWarning):
-        DataStream(data=data, allow_nan=True)

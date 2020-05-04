@@ -53,7 +53,7 @@ class AnyTimeSplitNode(SplitNode):
         ----------
         criterion: SplitCriterion
             The splitting criterion to be used.
-        ht: HoeffdingTreeClassifier
+        ht: HoeffdingTree
             Hoeffding Tree.
 
         Returns
@@ -111,7 +111,7 @@ class AnyTimeSplitNode(SplitNode):
             Instance class.
         weight: float
             Instance weight.
-        ht: HoeffdingTreeClassifier
+        ht: HoeffdingTree
             Hoeffding Tree to update.
 
         """
