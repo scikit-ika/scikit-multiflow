@@ -195,6 +195,17 @@ class AdaptiveRandomForest(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
         self.nb_threshold = nb_threshold
         self.nominal_attributes = nominal_attributes
 
+        # Drift detection
+        self.warning_detected = False
+        self.drift_detected = False
+        self.n_warnings = 0
+        self.n_drifts = 0
+        self.n_current_warnings = 0
+        self.n_current_drifts = 0
+
+        #Update config
+        self.new_n_estimators = self.n_estimators
+
     def partial_fit(self, X, y, classes=None, sample_weight=None):
         """ Partially (incrementally) fit the model.
 
@@ -238,10 +249,14 @@ class AdaptiveRandomForest(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
 
     def _partial_fit(self, X, y, classes=None, sample_weight=1.0):
         self.instances_seen += 1
+        self.warning_detected = False
+        self.drift_detected = False
 
         if self.ensemble is None:
             self.init_ensemble(X)
 
+        list_warnings = []
+        list_drifts = []
         for i in range(self.n_estimators):
             y_predicted = self.ensemble[i].predict(np.asarray([X]))
             self.ensemble[i].evaluator.add_result(y_predicted, y, sample_weight)
@@ -251,6 +266,29 @@ class AdaptiveRandomForest(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
                                              classes=classes,
                                              sample_weight=np.asarray([k]),
                                              instances_seen=self.instances_seen)
+
+            list_warnings.append(self.ensemble[i].nb_warnings_detected)
+            list_drifts.append(self.ensemble[i].nb_drifts_detected)
+
+        self.n_current_warnings = np.sum(list_warnings)
+        self.n_current_drifts = np.sum(list_drifts)
+
+        # # # DEBUG:
+        # print('N_current drifts : {}'.format(self.n_current_drifts))
+        # print('N_drifts: {}'.format(self.n_drifts))
+
+        if self.n_current_warnings > self.n_warnings :
+            self.warning_detected = True
+            self.n_warnings = self.n_current_warnings
+
+
+        if self.n_current_drifts > self.n_drifts :
+            self.drift_detected = True
+            self.n_drifts = self.n_current_drifts
+
+        # #Debug
+        # print('Nb drifts in ARF : '+str(self.n_drifts))
+
 
     def predict(self, X):
         """ Predict classes for the passed data.
@@ -312,6 +350,14 @@ class AdaptiveRandomForest(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
         self._train_weight_seen_by_model = 0.0
         self._random_state = check_random_state(self.random_state)
 
+        # Drift detection
+        self.warning_detected = False
+        self.drift_detected = False
+        self.n_warnings = 0
+        self.n_drifts = 0
+        self.n_current_warnings = 0
+        self.n_current_drifts = 0
+
     def get_votes_for_instance(self, X):
         if self.ensemble is None:
             self.init_ensemble(X)
@@ -359,6 +405,57 @@ class AdaptiveRandomForest(BaseSKMObject, ClassifierMixin, MetaEstimatorMixin):
                                         drift_detection_method=self.drift_detection_method,
                                         warning_detection_method=self.warning_detection_method,
                                         is_background_learner=False) for i in range(self.n_estimators)]
+
+    def update_config(self,X):
+        self._set_max_features(get_dimensions(X)[1])
+
+        # 1st case : new number of estimators > current number -> keep current ensemble + add new trees
+        if self.new_n_estimators > self.n_estimators :
+
+            n_add_estimators = self.new_n_estimators - self.n_estimators
+
+            self.ensemble_to_add = [ARFBaseLearner(index_original=i,
+                                            classifier=ARFHoeffdingTree(max_byte_size=self.max_byte_size,
+                                                                        memory_estimate_period=self.memory_estimate_period,
+                                                                        grace_period=self.grace_period,
+                                                                        split_criterion=self.split_criterion,
+                                                                        split_confidence=self.split_confidence,
+                                                                        tie_threshold=self.tie_threshold,
+                                                                        binary_split=self.binary_split,
+                                                                        stop_mem_management=self.stop_mem_management,
+                                                                        remove_poor_atts=self.remove_poor_atts,
+                                                                        no_preprune=self.no_preprune,
+                                                                        leaf_prediction=self.leaf_prediction,
+                                                                        nb_threshold=self.nb_threshold,
+                                                                        nominal_attributes=self.nominal_attributes,
+                                                                        max_features=self.max_features,
+                                                                        random_state=self.random_state),
+                                            instances_seen=self.instances_seen,
+                                            drift_detection_method=self.drift_detection_method,
+                                            warning_detection_method=self.warning_detection_method,
+                                            is_background_learner=False) for i in range(n_add_estimators)]
+
+            for estimator in self.ensemble_to_add :
+                self.ensemble.append(estimator)
+
+        # 2nd case : new number of estimators < current number
+        if self.new_n_estimators < self.n_estimators :
+            self.ensemble = self.ensemble[:self.new_n_estimators]
+
+        # 3rd case : new number of estimators == current number
+        if self.new_n_estimators == self.n_estimators :
+            self.ensemble = self.ensemble
+
+        # Update number of estimators
+        self.n_estimators = self.new_n_estimators
+
+        # Drift detection
+        self.warning_detected = False
+        self.drift_detected = False
+        self.n_warnings = 0
+        self.n_drifts = 0
+        self.n_current_warnings = 0
+        self.n_current_drifts = 0
 
     def _set_max_features(self, n):
         if self.max_features == 'auto' or self.max_features == 'sqrt':
